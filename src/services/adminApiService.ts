@@ -494,7 +494,7 @@ export class AdminApiService {
         hasMixedContent: true,
         errorMessage: this.mixedContentHelper.getMixedContentErrorMessage(),
         solutions: [
-                    "Configure SSL certificate on your API server (13.61.173.139)",
+          "Configure SSL certificate on your API server (13.61.173.139)",
           "Deploy this application on HTTP for development",
           "Use a reverse proxy with HTTPS support",
         ],
@@ -533,7 +533,12 @@ export class AdminApiService {
   }
 
   // Resolve a sensible default context for creating milestones when biography endpoints are unavailable
-  private async resolveFallbackMilestoneContext(): Promise<{ institutionId: number; curriculumId: number; subjectId: number; termId: number; }> {
+  private async resolveFallbackMilestoneContext(): Promise<{
+    institutionId: number;
+    curriculumId: number;
+    subjectId: number;
+    termId: number;
+  }> {
     let institutionId = 1;
     try {
       const institutions = await this.getInstitutions();
@@ -552,31 +557,39 @@ export class AdminApiService {
     if (!curriculumId) {
       try {
         const all = await this.getCurriculums();
-        if (Array.isArray(all) && all.length > 0) curriculumId = all[0].curriculumId || 1;
+        if (Array.isArray(all) && all.length > 0)
+          curriculumId = all[0].curriculumId || 1;
       } catch {}
     }
 
     let subjectId = 1;
     try {
-      const subs = await this.getSubjectsByCurriculum(curriculumId, institutionId);
-      if (Array.isArray(subs) && subs.length > 0) subjectId = subs[0].subjectId || 1;
+      const subs = await this.getSubjectsByCurriculum(
+        curriculumId,
+        institutionId,
+      );
+      if (Array.isArray(subs) && subs.length > 0)
+        subjectId = subs[0].subjectId || 1;
     } catch {}
     if (!subjectId) {
       try {
         const allSubs = await this.getSubjects();
-        if (Array.isArray(allSubs) && allSubs.length > 0) subjectId = allSubs[0].subjectId || 1;
+        if (Array.isArray(allSubs) && allSubs.length > 0)
+          subjectId = allSubs[0].subjectId || 1;
       } catch {}
     }
 
     let termId = 1;
     try {
       const terms = await this.getTermsByInstitution(institutionId);
-      if (Array.isArray(terms) && terms.length > 0) termId = terms[0].termId || 1;
+      if (Array.isArray(terms) && terms.length > 0)
+        termId = terms[0].termId || 1;
     } catch {}
     if (!termId) {
       try {
         const allTerms = await this.getTerms();
-        if (Array.isArray(allTerms) && allTerms.length > 0) termId = allTerms[0].termId || 1;
+        if (Array.isArray(allTerms) && allTerms.length > 0)
+          termId = allTerms[0].termId || 1;
       } catch {}
     }
 
@@ -1184,7 +1197,7 @@ export class AdminApiService {
   async getBiographyMilestones(): Promise<BiographyMilestone[]> {
     try {
       const res: AxiosResponse<BiographyMilestone[]> = await axiosClient.get(
-        "/api/biography-milestones"
+        "/api/biography-milestones",
       );
       return res.data || [];
     } catch (error) {
@@ -1202,7 +1215,7 @@ export class AdminApiService {
       const res = await this.tryBioEndpoints<AxiosResponse<BiographyMilestone>>(
         async (base) => axiosClient.get(`${base}/${id}`),
       );
-      return (res.data as any);
+      return res.data as any;
     } catch (error) {
       console.error(`Error fetching biography milestone ${id}:`, {
         message: (error as any)?.message,
@@ -1217,11 +1230,20 @@ export class AdminApiService {
     data: CreateBiographyMilestoneDto,
   ): Promise<BiographyMilestone> {
     try {
-      const payload = { title: data.title, objective: data.objective, task: data.task };
+      const payload = {
+        title: data.title,
+        objective: data.objective,
+        task: data.task,
+      };
       const res: AxiosResponse<BiographyMilestone> = await axiosClient.post(
         "/api/biography-milestones/add-milestone",
         payload,
-        { headers: { "Content-Type": "application/json", Accept: "application/json" } }
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
       );
       return res.data as any;
     } catch (error) {
@@ -1239,11 +1261,20 @@ export class AdminApiService {
     data: UpdateBiographyMilestoneDto,
   ): Promise<BiographyMilestone> {
     try {
-      const payload = { title: data.title, objective: data.objective, task: data.task };
+      const payload = {
+        title: data.title,
+        objective: data.objective,
+        task: data.task,
+      };
       const res: AxiosResponse<BiographyMilestone> = await axiosClient.put(
         `/api/biography-milestones/${id}`,
         payload,
-        { headers: { "Content-Type": "application/json", Accept: "application/json" } }
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
       );
       return res.data as any;
     } catch (error) {
@@ -1314,9 +1345,9 @@ export class AdminApiService {
         {
           headers: {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            Accept: "application/json",
           },
-        }
+        },
       );
       console.log("✅ Subject creation response:", response.data);
       return response.data;
@@ -1330,8 +1361,8 @@ export class AdminApiService {
         config: {
           url: error.config?.url,
           method: error.config?.method,
-          data: error.config?.data
-        }
+          data: error.config?.data,
+        },
       });
       throw error;
     }
@@ -1512,7 +1543,7 @@ export class AdminApiService {
   async getSubjectAssignments(): Promise<any[]> {
     try {
       const response: AxiosResponse<any[]> = await axiosClient.get(
-        "/api/subject-assignments"
+        "/api/subject-assignments",
       );
       return response.data;
     } catch (error) {
@@ -1527,7 +1558,7 @@ export class AdminApiService {
   async getSubjectAssignment(id: number): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.get(
-        `/api/subject-assignments/${id}`
+        `/api/subject-assignments/${id}`,
       );
       return response.data;
     } catch (error) {
@@ -1548,7 +1579,7 @@ export class AdminApiService {
     try {
       const response: AxiosResponse<any> = await axiosClient.post(
         "/api/subject-assignments/assign-subject-to-teacher",
-        assignmentData
+        assignmentData,
       );
       return response.data;
     } catch (error) {
@@ -1566,12 +1597,12 @@ export class AdminApiService {
       teacherId: string;
       subjectId: number;
       levelId: number;
-    }
+    },
   ): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.put(
         `/api/subject-assignments/${id}`,
-        assignmentData
+        assignmentData,
       );
       return response.data;
     } catch (error) {
@@ -1597,19 +1628,22 @@ export class AdminApiService {
    */
   async getTeacherSubjectsWithMilestonesAndGoals(
     curriculumId?: number,
-    termId?: number
+    termId?: number,
   ): Promise<any[]> {
     try {
       const params = new URLSearchParams();
-      if (curriculumId) params.append('curriculumId', curriculumId.toString());
-      if (termId) params.append('termId', termId.toString());
+      if (curriculumId) params.append("curriculumId", curriculumId.toString());
+      if (termId) params.append("termId", termId.toString());
 
       const response: AxiosResponse<any[]> = await axiosClient.get(
-        `/api/subject-assignments/teacher-subjects-with-milestones-and-goals?${params.toString()}`
+        `/api/subject-assignments/teacher-subjects-with-milestones-and-goals?${params.toString()}`,
       );
       return response.data;
     } catch (error) {
-      console.error("Error fetching teacher subjects with milestones and goals:", error);
+      console.error(
+        "Error fetching teacher subjects with milestones and goals:",
+        error,
+      );
       throw error;
     }
   }
@@ -1623,7 +1657,8 @@ export class AdminApiService {
    */
   async getLevels(): Promise<any[]> {
     try {
-      const response: AxiosResponse<any[]> = await axiosClient.get("/api/levels");
+      const response: AxiosResponse<any[]> =
+        await axiosClient.get("/api/levels");
       return response.data;
     } catch (error) {
       console.error("Error fetching levels:", error);
@@ -1637,13 +1672,13 @@ export class AdminApiService {
   async getLevelsByInstitution(institutionId: number): Promise<any[]> {
     try {
       const response: AxiosResponse<any[]> = await axiosClient.get(
-        `/api/levels/by-institution?institutionId=${institutionId}`
+        `/api/levels/by-institution?institutionId=${institutionId}`,
       );
       return response.data;
     } catch (error) {
       console.error(
         `Error fetching levels for institution ${institutionId}:`,
-        error
+        error,
       );
       throw error;
     }
@@ -1655,7 +1690,7 @@ export class AdminApiService {
   async getLevel(levelId: number): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.get(
-        `/api/levels/${levelId}`
+        `/api/levels/${levelId}`,
       );
       return response.data;
     } catch (error) {
@@ -1674,7 +1709,7 @@ export class AdminApiService {
     try {
       const response: AxiosResponse<any> = await axiosClient.post(
         "/api/levels/add-level",
-        levelData
+        levelData,
       );
       return response.data;
     } catch (error) {
@@ -1686,14 +1721,17 @@ export class AdminApiService {
   /**
    * Update level
    */
-  async updateLevel(levelId: number, levelData: {
-    levelName: string;
-    isActive: boolean;
-  }): Promise<any> {
+  async updateLevel(
+    levelId: number,
+    levelData: {
+      levelName: string;
+      isActive: boolean;
+    },
+  ): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.put(
         `/api/levels/${levelId}`,
-        levelData
+        levelData,
       );
       return response.data;
     } catch (error) {
@@ -1729,7 +1767,7 @@ export class AdminApiService {
     try {
       const response: AxiosResponse<any> = await axiosClient.post(
         "/api/levels/assign-student-to-level",
-        assignmentData
+        assignmentData,
       );
       return response.data;
     } catch (error) {
@@ -1744,7 +1782,7 @@ export class AdminApiService {
   async getLevelAssignment(assignmentId: number): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.get(
-        `/api/levels/level-assigned/${assignmentId}`
+        `/api/levels/level-assigned/${assignmentId}`,
       );
       return response.data;
     } catch (error) {
@@ -1762,12 +1800,12 @@ export class AdminApiService {
       studentId: string;
       levelId: number;
       status?: number;
-    }
+    },
   ): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.put(
         `/api/levels/assigned/${assignmentId}`,
-        assignmentData
+        assignmentData,
       );
       return response.data;
     } catch (error) {
@@ -1782,7 +1820,7 @@ export class AdminApiService {
   async getStudentsByLevel(levelId: number): Promise<any[]> {
     try {
       const response: AxiosResponse<any[]> = await axiosClient.get(
-        `/api/levels/${levelId}/students`
+        `/api/levels/${levelId}/students`,
       );
       return response.data;
     } catch (error) {
@@ -1798,7 +1836,10 @@ export class AdminApiService {
     try {
       await axiosClient.delete(`/api/levels/assigned/${assignmentId}`);
     } catch (error) {
-      console.error(`Error removing student from level ${assignmentId}:`, error);
+      console.error(
+        `Error removing student from level ${assignmentId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -1813,7 +1854,9 @@ export class AdminApiService {
   async getStudents(): Promise<any[]> {
     try {
       console.log("🔍 Fetching all students...");
-      const response: AxiosResponse<any[]> = await axiosClient.get("/api/Users/students");
+      const response: AxiosResponse<any[]> = await axiosClient.get(
+        "/api/Users/students",
+      );
 
       console.log("✅ Students API response:", response.data);
       console.log("📊 Students count:", response.data?.length || 0);
@@ -1840,8 +1883,14 @@ export class AdminApiService {
 
       if (response.data && response.data.length > 0) {
         console.log(`🔍 First ${roleName} user structure:`, response.data[0]);
-        console.log(`🔍 Role field in ${roleName} response:`, response.data[0]?.role);
-        console.log(`🔍 Available fields in ${roleName} user:`, Object.keys(response.data[0] || {}));
+        console.log(
+          `🔍 Role field in ${roleName} response:`,
+          response.data[0]?.role,
+        );
+        console.log(
+          `🔍 Available fields in ${roleName} user:`,
+          Object.keys(response.data[0] || {}),
+        );
       }
 
       return response.data;
@@ -1916,7 +1965,10 @@ export class AdminApiService {
   /**
    * Update user
    */
-  async updateUser(userId: string, userData: Partial<UserRegisterDto>): Promise<any> {
+  async updateUser(
+    userId: string,
+    userData: Partial<UserRegisterDto>,
+  ): Promise<any> {
     try {
       const response: AxiosResponse<any> = await axiosClient.put(
         `/api/Users/${userId}`,
@@ -1946,7 +1998,8 @@ export class AdminApiService {
    */
   async getAllUsers(): Promise<any[]> {
     try {
-      const response: AxiosResponse<any[]> = await axiosClient.get("/api/Users");
+      const response: AxiosResponse<any[]> =
+        await axiosClient.get("/api/Users");
       return response.data;
     } catch (error) {
       console.error("Error fetching all users:", error);
@@ -2036,7 +2089,10 @@ export class AdminApiService {
       // Check if role field exists and what it contains
       if (teachersData.length > 0) {
         console.log("👨‍🏫 Teacher role field:", teachersData[0]?.role);
-        console.log("👨‍🏫 Teacher available fields:", Object.keys(teachersData[0] || {}));
+        console.log(
+          "👨‍🏫 Teacher available fields:",
+          Object.keys(teachersData[0] || {}),
+        );
       }
       if (studentsData.length > 0) {
         console.log("🎓 Student role field:", studentsData[0]?.role);
@@ -2137,7 +2193,8 @@ export class AdminApiService {
           const prepared = prepareLessonContent(raw);
           if (!prepared) return "";
           if (typeof prepared === "string") return prepared.toLowerCase();
-          if (typeof prepared === "object") return JSON.stringify(prepared).toLowerCase();
+          if (typeof prepared === "object")
+            return JSON.stringify(prepared).toLowerCase();
           return String(prepared).toLowerCase();
         } catch (e) {
           try {
@@ -2166,7 +2223,9 @@ export class AdminApiService {
         }),
         assignments: assignments.filter((assignment) => {
           const title = (assignment.title || "").toLowerCase();
-          const content = toSearchable(assignment.content || assignment.description);
+          const content = toSearchable(
+            assignment.content || assignment.description,
+          );
           return title.includes(lowerQuery) || content.includes(lowerQuery);
         }),
       };

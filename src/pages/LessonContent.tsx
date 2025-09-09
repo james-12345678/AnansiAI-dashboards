@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiService } from "@/services/apiService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { renderLessonContent, prepareLessonContent } from "@/lib/lessonRenderer";
+import {
+  renderLessonContent,
+  prepareLessonContent,
+} from "@/lib/lessonRenderer";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -80,41 +83,58 @@ const LessonContent = () => {
               return;
             }
           } catch (e) {
-            console.warn("Failed to fetch course lessons, falling back to mock course", e);
+            console.warn(
+              "Failed to fetch course lessons, falling back to mock course",
+              e,
+            );
           }
         }
 
         // If no course provided but a single lesson was passed via navigation, use it directly
-        if (!course && (lessonId || (location.state && (location.state as any).lesson))) {
+        if (
+          !course &&
+          (lessonId || (location.state && (location.state as any).lesson))
+        ) {
           const navLesson = (location.state as any)?.lesson;
           // Try to fetch canonical lesson by id from adminApiService
           let fetchedLesson: any = null;
           if (lessonId) {
             try {
-              fetchedLesson = await (await import('@/services/adminApiService')).adminApiService.getLesson(parseInt(lessonId as any));
+              fetchedLesson = await (
+                await import("@/services/adminApiService")
+              ).adminApiService.getLesson(parseInt(lessonId as any));
             } catch (err) {
-              console.warn('Could not fetch lesson by id, using navigation lesson if available', err);
+              console.warn(
+                "Could not fetch lesson by id, using navigation lesson if available",
+                err,
+              );
             }
           }
 
           const finalLesson = fetchedLesson || navLesson;
 
           const singleCourse: Course = {
-            id: `course_${finalLesson?.id || 'unknown'}`,
-            title: (location.state as any)?.subject || 'Subject Lessons',
-            currentLessonId: finalLesson?.id || (lessonId as any) || 'unknown_lesson',
+            id: `course_${finalLesson?.id || "unknown"}`,
+            title: (location.state as any)?.subject || "Subject Lessons",
+            currentLessonId:
+              finalLesson?.id || (lessonId as any) || "unknown_lesson",
             progress: 0,
             lessons: [
               {
-                id: finalLesson?.id || (lessonId as any) || 'unknown_lesson',
-                title: finalLesson?.title || finalLesson?.lessonTitle || 'Untitled Lesson',
-                description: finalLesson?.description || finalLesson?.content || '',
-                type: finalLesson?.type || 'reading',
+                id: finalLesson?.id || (lessonId as any) || "unknown_lesson",
+                title:
+                  finalLesson?.title ||
+                  finalLesson?.lessonTitle ||
+                  "Untitled Lesson",
+                description:
+                  finalLesson?.description || finalLesson?.content || "",
+                type: finalLesson?.type || "reading",
                 duration: finalLesson?.duration || 10,
                 completed: finalLesson?.isCompleted || false,
                 content: {
                   videoUrl: finalLesson?.videoUrl,
-                  textContent: finalLesson?.content || finalLesson?.description || '',
+                  textContent:
+                    finalLesson?.content || finalLesson?.description || "",
                   quizQuestions: finalLesson?.quizQuestions || [],
                 },
               },
@@ -129,21 +149,21 @@ const LessonContent = () => {
         // Fallback: no course or lesson provided, use mock course as before
         if (!course && !lessonId) {
           const mockCourse: Course = {
-            id: 'mock_course_1',
-            title: 'Sample Course',
-            currentLessonId: 'mock_course_1_lesson_1',
+            id: "mock_course_1",
+            title: "Sample Course",
+            currentLessonId: "mock_course_1_lesson_1",
             progress: 0,
             lessons: [
               {
-                id: 'mock_course_1_lesson_1',
-                title: 'Introduction to Advanced Concepts',
+                id: "mock_course_1_lesson_1",
+                title: "Introduction to Advanced Concepts",
                 description:
-                  'Learn the fundamental principles that will guide your journey through this course.',
-                type: 'video',
+                  "Learn the fundamental principles that will guide your journey through this course.",
+                type: "video",
                 duration: 15,
                 completed: false,
                 content: {
-                  videoUrl: 'https://example.com/video1',
+                  videoUrl: "https://example.com/video1",
                   textContent: `Welcome to this comprehensive lesson on advanced concepts!`,
                 },
               },
@@ -155,7 +175,7 @@ const LessonContent = () => {
           return;
         }
       } catch (error) {
-        console.error('Failed to load lesson data:', error);
+        console.error("Failed to load lesson data:", error);
       }
     };
 
@@ -355,7 +375,11 @@ const LessonContent = () => {
                       Lesson Content
                     </h3>
                     <div className="text-gray-700 whitespace-pre-line">
-                      {renderLessonContent(prepareLessonContent(currentLesson.content || currentLesson.description))}
+                      {renderLessonContent(
+                        prepareLessonContent(
+                          currentLesson.content || currentLesson.description,
+                        ),
+                      )}
                     </div>
                   </div>
                 </div>

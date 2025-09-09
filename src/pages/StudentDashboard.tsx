@@ -3055,7 +3055,7 @@ const StudentDashboard = () => {
                                   <div>{courseDisplay.instructor}</div>
                                   <div className="flex items-center gap-1 text-xs text-gray-500">
                                     <Clock className="w-3 h-3" />
-                                    {lesson.duration} minutes • Lesson{" "}
+                                    {lesson.duration} minutes �� Lesson{" "}
                                     {lesson.order}
                                   </div>
                                   <div className="text-xs text-gray-500 line-clamp-1">
@@ -3170,27 +3170,8 @@ const StudentDashboard = () => {
                                     </Button>
                                   </>
                                 ) : courseDisplay.isCompleted ? (
-                                  // Completed lesson
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setLastAction(`Reviewing ${courseDisplay.title}`);
-                                      navigate("/lesson-content", {
-                                        state: {
-                                          type: "lesson",
-                                          lesson: lesson,
-                                          subject: subject?.name || "Unknown Subject",
-                                          lessonId: lesson.id,
-                                        },
-                                      });
-                                    }}
-                                  >
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    Review
-                                  </Button>
+                                  // Completed lesson - show status only, use single Read button to open content
+                                  <span className="text-sm text-gray-600 flex-1">Completed</span>
                                 ) : (
                                   // Start new lesson
                                   <Button

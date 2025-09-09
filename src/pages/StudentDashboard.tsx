@@ -631,7 +631,15 @@ const StudentDashboard = () => {
         try {
           const full = generateEditableLessonHtml(lesson, subjectData);
           const mainMatch = full.match(/<main[\s\S]*?<\/main>/i);
-          const main = mainMatch ? mainMatch[0] : `<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3><pre>${escapeHtml(String(lesson.content || lesson.description || ''))}</pre></div>`;
+          let main: string;
+          if (mainMatch) {
+            main = mainMatch[0];
+          } else {
+            // Use prepared content and serialize to safe HTML string
+            const prepared = prepareLessonContent(lesson.content || lesson.description);
+            const htmlString = contentToHtmlString(prepared);
+            main = `<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3>${htmlString}</div>`;
+          }
           fragments.push(main);
         } catch (e) {
           fragments.push(`<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3><pre>${escapeHtml(String(lesson.content || lesson.description || ''))}</pre></div>`);
@@ -1094,7 +1102,7 @@ const StudentDashboard = () => {
         try {
           // Load educational data directly from API endpoints (teacher-created content)
           console.log("🔄 Fetching student data from consolidated API endpoint...");
-          console.log("🔑 Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
+          console.log("���� Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
 
           // Only call the student-scoped endpoint - no admin endpoints
           const studentSubjectsResponse = await axiosClient.get('/api/students/student-subjects')
@@ -1894,7 +1902,7 @@ const StudentDashboard = () => {
       case Mood.Focused:
         return "🎯";
       case Mood.Anxious:
-        return "😰";
+        return "��";
       case Mood.Tired:
         return "😴";
       case Mood.Frustrated:

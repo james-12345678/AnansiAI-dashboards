@@ -591,6 +591,66 @@ const StudentDashboard = () => {
 
   const studentDisplayName = getStudentDisplayName();
 
+  // Subject viewer state: fetch subject lessons as JSON, convert to HTML and display
+  const [subjectViewerOpen, setSubjectViewerOpen] = useState(false);
+  const [viewingSubjectHtml, setViewingSubjectHtml] = useState<string | null>(null);
+  const [viewingSubjectTitle, setViewingSubjectTitle] = useState<string | null>(null);
+
+  const handleViewSubject = async (subject: any) => {
+    try {
+      setLastAction(`Fetching ${subject.name || subject.subjectName || subject.id}...`);
+
+      // Try to fetch student-subjects from the student-scoped endpoint
+      const res = await axiosClient
+        .get("/api/students/student-subjects")
+        .catch((e) => ({ error: e }));
+
+      let subjectData: any = null;
+      if (res && !res.error && Array.isArray(res.data)) {
+        subjectData = res.data.find((s: any) => (s.subjectId || s.id) === (subject.id || subject.subjectId));
+      }
+
+      // Fallback to local state
+      if (!subjectData) {
+        subjectData = subjects.find((s: any) => s.id === subject.id || s.subjectId === subject.id || s.subjectId === subject.subjectId);
+      }
+
+      if (!subjectData) {
+        setLastAction("Subject data not found");
+        return;
+      }
+
+      const lessonsList = Array.isArray(subjectData.lessons) ? subjectData.lessons : [];
+
+      // Build combined HTML by extracting the <main>...</main> from each lesson HTML
+      const fragments: string[] = [];
+      for (const lesson of lessonsList) {
+        try {
+          const full = generateEditableLessonHtml(lesson, subjectData);
+          const mainMatch = full.match(/<main[\s\S]*?<\/main>/i);
+          const main = mainMatch ? mainMatch[0] : `<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3><pre>${escapeHtml(String(lesson.content || lesson.description || ''))}</pre></div>`;
+          fragments.push(main);
+        } catch (e) {
+          fragments.push(`<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3><pre>${escapeHtml(String(lesson.content || lesson.description || ''))}</pre></div>`);
+        }
+      }
+
+      const combined = `
+        <div style="max-width:900px;margin:16px auto;padding:12px">
+          <h1>${escapeHtml(subjectData.subjectName || subjectData.name || 'Subject')}</h1>
+          ${fragments.join('<hr style="margin:20px 0"/>')}
+        </div>
+      `;
+
+      setViewingSubjectHtml(combined);
+      setViewingSubjectTitle(subjectData.subjectName || subjectData.name || 'Subject');
+      setSubjectViewerOpen(true);
+    } catch (err) {
+      console.error('Failed to load subject content', err);
+      setLastAction('Failed to load subject content');
+    }
+  };
+
 
 
 
@@ -1913,6 +1973,22 @@ const StudentDashboard = () => {
 
   return (
     <div className="student-dashboard min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Subject Viewer Dialog - shows converted HTML content for a subject */}
+      <Dialog open={subjectViewerOpen} onOpenChange={setSubjectViewerOpen}>
+        <DialogContent className="max-w-4xl w-full">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">{viewingSubjectTitle || 'Subject Content'}</h3>
+              <p className="text-sm text-gray-500">Converted lessons and content</p>
+            </div>
+            <div>
+              <Button variant="ghost" size="sm" onClick={() => setSubjectViewerOpen(false)}>Close</Button>
+            </div>
+          </div>
+
+          <div className="prose max-w-full" style={{lineHeight:1.6}} dangerouslySetInnerHTML={{ __html: viewingSubjectHtml || '<p>No content available</p>' }} />
+        </DialogContent>
+      </Dialog>
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

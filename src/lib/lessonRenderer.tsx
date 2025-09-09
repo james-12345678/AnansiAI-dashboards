@@ -64,11 +64,13 @@ function renderArray(arr: any[]) {
 
 function renderObject(obj: LessonJson) {
   // If this object looks like a key-concept item
-  if (obj && typeof obj === "object" && obj.concept && obj.detailedExplanation) {
+  if (obj && typeof obj === "object" && (obj.concept || obj.title || obj.name) && (obj.detailedExplanation || obj.description || obj.summary)) {
+    const concept = obj.concept || obj.title || obj.name;
+    const detailedExplanation = obj.detailedExplanation || obj.description || obj.summary || "";
     return (
       <div className="mb-4">
-        <h4 className="text-md font-semibold">{obj.concept}</h4>
-        <p className="text-sm text-gray-700 mt-1">{obj.detailedExplanation}</p>
+        <h4 className="text-md font-semibold">{concept}</h4>
+        <p className="text-sm text-gray-700 mt-1">{detailedExplanation}</p>
         {obj.realLifeConnections && (
           <p className="text-sm text-gray-600 italic mt-1">{obj.realLifeConnections}</p>
         )}
@@ -95,6 +97,62 @@ function renderObject(obj: LessonJson) {
   );
 }
 
+function normalizeLessonObject(input: LessonJson): LessonJson {
+  if (!input || typeof input !== "object") return input;
+  const obj: LessonJson = { ...input };
+
+  // Normalize title
+  if (!obj.lessonTitle && (obj.title || obj.name)) {
+    obj.lessonTitle = obj.lessonTitle || obj.title || obj.name;
+  }
+
+  // Normalize introduction/overview/summary
+  obj.introduction = obj.introduction || obj.intro || null;
+  obj.lessonOverview = obj.lessonOverview || obj.lesson_overview || obj.overview || null;
+  obj.summary = obj.summary || obj.conclusion || obj.description || obj.lessonOverview || null;
+
+  // Normalize learning objectives
+  if (!obj.learningObjectives) {
+    obj.learningObjectives = obj.learningObjectives || obj.objectives || obj.goals || null;
+  }
+
+  // Normalize key concepts
+  if (!obj.keyConcepts) {
+    obj.keyConcepts = obj.keyConcepts || obj.concepts || obj.coreConcepts || null;
+  }
+
+  // Normalize suggested activities
+  obj.suggestedActivities = obj.suggestedActivities || obj.activities || obj.tasks || null;
+
+  // Normalize further reading
+  obj.furtherReading = obj.furtherReading || obj.further_reading || obj.references || obj.reading || null;
+
+  // Ensure arrays are arrays of strings or objects
+  if (obj.suggestedActivities && !Array.isArray(obj.suggestedActivities)) {
+    obj.suggestedActivities = [String(obj.suggestedActivities)];
+  }
+  if (obj.furtherReading && !Array.isArray(obj.furtherReading)) {
+    obj.furtherReading = [String(obj.furtherReading)];
+  }
+
+  // Normalize keyConcepts items into objects with concept + detailedExplanation
+  if (Array.isArray(obj.keyConcepts)) {
+    obj.keyConcepts = obj.keyConcepts.map((kc: any) => {
+      if (typeof kc === "string") return { concept: kc, detailedExplanation: "" };
+      if (typeof kc === "object") {
+        return {
+          concept: kc.concept || kc.title || kc.name || "",
+          detailedExplanation: kc.detailedExplanation || kc.description || kc.summary || "",
+          realLifeConnections: kc.realLifeConnections || kc.examples || kc.real_life || null,
+        };
+      }
+      return { concept: String(kc), detailedExplanation: "" };
+    });
+  }
+
+  return obj;
+}
+
 export function renderLessonContent(content: string | LessonJson | null | undefined) {
   if (!content) return <div className="text-gray-700">No content available.</div>;
 
@@ -112,7 +170,7 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
     }
 
     // Render plain text with paragraphs separated by double newlines, keep pre-line whitespace
-    const paragraphs = trimmed.split(/\n\n+/).map((p) => p.trim());
+    const paragraphs = trimmed.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
     return (
       <div className="prose prose-sm text-gray-700">
         {paragraphs.map((p, idx) => (
@@ -129,35 +187,41 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
     return renderArray(content as any[]);
   }
 
-  // If object, render known fields in a readable order
-  const obj = content as LessonJson;
+  // If object, normalize then render known fields in a readable order
+  const obj = normalizeLessonObject(content as LessonJson);
+
   return (
     <div className="space-y-4 text-gray-800">
       {obj.lessonTitle && <h2 className="text-2xl font-bold">{obj.lessonTitle}</h2>}
+
       {obj.prerequisites && (
         <div>
           <h3 className="text-lg font-semibold">Prerequisites</h3>
           {renderArray(obj.prerequisites)}
         </div>
       )}
+
       {obj.introduction && (
         <div>
           <h3 className="text-lg font-semibold">Introduction</h3>
           <p className="text-sm text-gray-700 whitespace-pre-line">{obj.introduction}</p>
         </div>
       )}
+
       {obj.lessonOverview && (
         <div>
           <h3 className="text-lg font-semibold">Lesson Overview</h3>
           <p className="text-sm text-gray-700 whitespace-pre-line">{obj.lessonOverview}</p>
         </div>
       )}
+
       {obj.learningObjectives && (
         <div>
           <h3 className="text-lg font-semibold">Learning Objectives</h3>
           {renderArray(obj.learningObjectives)}
         </div>
       )}
+
       {obj.keyConcepts && (
         <div>
           <h3 className="text-lg font-semibold">Key Concepts</h3>
@@ -170,22 +234,59 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
           </div>
         </div>
       )}
-      {obj.contentOrder && (
+
+      {/* Summary */}
+      {obj.summary && (
         <div>
-          <h3 className="text-lg font-semibold">Content Order</h3>
-          <ol className="list-decimal pl-6">
-            {obj.contentOrder.map((c: any, idx: number) => (
-              <li key={idx} className="mb-1">{c}</li>
-            ))}
-          </ol>
+          <h3 className="text-lg font-semibold">Summary</h3>
+          <p className="text-sm text-gray-700 whitespace-pre-line">{obj.summary}</p>
         </div>
       )}
+
+      {/* Suggested Activities */}
+      {obj.suggestedActivities && (
+        <div>
+          <h3 className="text-lg font-semibold">Suggested Activities</h3>
+          <div className="mt-2">
+            {Array.isArray(obj.suggestedActivities) ? (
+              <ul className="list-disc pl-6">
+                {obj.suggestedActivities.map((a: any, i: number) => (
+                  <li key={i} className="mb-1">{typeof a === "string" ? a : String(a)}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-700">{String(obj.suggestedActivities)}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Further Reading */}
+      {obj.furtherReading && (
+        <div>
+          <h3 className="text-lg font-semibold">Further Reading</h3>
+          <div className="mt-2">
+            {Array.isArray(obj.furtherReading) ? (
+              <ul className="list-disc pl-6">
+                {obj.furtherReading.map((r: any, i: number) => (
+                  <li key={i} className="mb-1">{typeof r === "string" ? r : String(r)}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-700">{String(obj.furtherReading)}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Render other known sections generically */}
       {obj.examples && (
         <div>
           <h3 className="text-lg font-semibold">Examples</h3>
           {renderArray(obj.examples)}
         </div>
       )}
+
       {obj.assessment && (
         <div>
           <h3 className="text-lg font-semibold">Assessment</h3>
@@ -219,20 +320,6 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
         </div>
       )}
 
-      {obj.summary && (
-        <div>
-          <h3 className="text-lg font-semibold">Summary</h3>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{obj.summary}</p>
-        </div>
-      )}
-
-      {obj.keyTakeaways && (
-        <div>
-          <h3 className="text-lg font-semibold">Key Takeaways</h3>
-          {renderArray(obj.keyTakeaways)}
-        </div>
-      )}
-
       {/* Render any remaining keys generically */}
       {Object.keys(obj)
         .filter(
@@ -249,17 +336,15 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
               "assessment",
               "summary",
               "keyTakeaways",
+              "suggestedActivities",
+              "furtherReading",
             ].includes(k),
         )
         .map((k) => (
           <div key={k}>
             <h4 className="font-medium text-sm capitalize">{k.replace(/([A-Z])/g, " $1")}</h4>
             <div className="text-sm text-gray-700 mt-1">
-              {Array.isArray(obj[k])
-                ? renderArray(obj[k])
-                : typeof obj[k] === "object"
-                ? renderObject(obj[k])
-                : String(obj[k])}
+              {Array.isArray(obj[k]) ? renderArray(obj[k]) : typeof obj[k] === "object" ? renderObject(obj[k]) : String(obj[k])}
             </div>
           </div>
         ))}

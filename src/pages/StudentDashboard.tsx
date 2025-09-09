@@ -77,6 +77,7 @@ import {
   EndLessonSessionRequest,
 } from "@/services/lessonSessionService";
 import { authService } from "@/services/authService";
+import { renderLessonContent } from "@/lib/lessonRenderer";
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/anansiai";
@@ -595,6 +596,8 @@ const StudentDashboard = () => {
   const [subjectViewerOpen, setSubjectViewerOpen] = useState(false);
   const [viewingSubjectHtml, setViewingSubjectHtml] = useState<string | null>(null);
   const [viewingSubjectTitle, setViewingSubjectTitle] = useState<string | null>(null);
+  // Track which lessons are expanded (inline book view)
+  const [expandedLessons, setExpandedLessons] = useState<Record<string, boolean>>({});
 
   const handleViewSubject = async (subject: any) => {
     try {
@@ -3079,7 +3082,7 @@ const StudentDashboard = () => {
                                 <span>{lesson.duration} min duration</span>
                               </div>
 
-                                                            {/* Lesson timing display for active lesson */}
+                              {/* Lesson timing display for active lesson */}
                               {activeLessonSession && activeLessonSession.lessonId === lesson.id && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
                                   <div className="flex items-center justify-between">
@@ -3102,19 +3105,12 @@ const StudentDashboard = () => {
                                   variant="outline"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setLastAction(`Viewing ${courseDisplay.title}`);
-                                    navigate("/lesson-content", {
-                                      state: {
-                                        type: "lesson",
-                                        lesson: lesson,
-                                        subject: subject?.name || "Unknown Subject",
-                                        lessonId: lesson.id,
-                                      },
-                                    });
+                                    setLastAction(`Toggling book view for ${courseDisplay.title}`);
+                                    setExpandedLessons((prev) => ({ ...prev, [lesson.id]: !prev[lesson.id] }));
                                   }}
                                 >
                                   <FileText className="w-4 h-4 mr-2" />
-                                  View
+                                  {expandedLessons[lesson.id] ? 'Close' : 'Read'}
                                 </Button>
                                 {/* Show different buttons based on lesson state */}
                                 {activeLessonSession && activeLessonSession.lessonId === lesson.id ? (
@@ -3197,6 +3193,14 @@ const StudentDashboard = () => {
                                   </Button>
                                 )}
                               </div>
+
+                              {/* Inline book-style lesson content */}
+                              {expandedLessons[lesson.id] && (
+                                <div className="mt-4 p-6 bg-white border border-gray-200 rounded-lg prose">
+                                  {renderLessonContent(lesson.content || lesson.description)}
+                                </div>
+                              )}
+
                             </div>
                           </CardContent>
                         </Card>

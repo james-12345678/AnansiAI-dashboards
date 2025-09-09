@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiService } from "@/services/apiService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { renderLessonContent } from "@/lib/lessonRenderer";
+import { renderLessonContent, prepareLessonContent } from "@/lib/lessonRenderer";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -355,7 +355,7 @@ const LessonContent = () => {
                       Lesson Content
                     </h3>
                     <div className="text-gray-700 whitespace-pre-line">
-                      {renderLessonContent(currentLesson.content.textContent)}
+                      {renderLessonContent(prepareLessonContent(currentLesson.content || currentLesson.description))}
                     </div>
                   </div>
                 </div>

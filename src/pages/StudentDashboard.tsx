@@ -642,7 +642,9 @@ const StudentDashboard = () => {
           }
           fragments.push(main);
         } catch (e) {
-          fragments.push(`<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3><pre>${escapeHtml(String(lesson.content || lesson.description || ''))}</pre></div>`);
+          const prepared = prepareLessonContent(lesson.content || lesson.description);
+          const htmlString = contentToHtmlString(prepared);
+          fragments.push(`<div><h3>${escapeHtml(lesson.title || 'Lesson')}</h3>${htmlString}</div>`);
         }
       }
 
@@ -1124,7 +1126,7 @@ const StudentDashboard = () => {
 
             studentSubjectsResponse.forEach((studentSubject, index) => {
               console.log(`🔍 StudentSubject ${index}:`, studentSubject);
-              console.log(`📝 Object keys:`, Object.keys(studentSubject));
+              console.log(`��� Object keys:`, Object.keys(studentSubject));
               const subjectName = studentSubject.subjectName || studentSubject.name || 'Unknown Subject';
 
               // Extract assignments from lessons (where they're actually located)

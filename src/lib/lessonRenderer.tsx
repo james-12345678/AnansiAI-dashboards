@@ -2,6 +2,54 @@ import React from "react";
 
 type LessonJson = Record<string, any>;
 
+export function prepareLessonContent(raw: any): string | LessonJson | null {
+  if (raw === null || raw === undefined) return null;
+
+  // If it's a string, try to detect JSON and parse it
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        // Not valid JSON, return the raw string
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  // If it's an object, try common shapes (textContent, content, blocks, ops)
+  if (typeof raw === "object") {
+    // Common shape: { textContent: "..." }
+    if (typeof raw.textContent === "string") return raw.textContent;
+
+    // Nested content: { content: "..." } or { content: { textContent: '...' } }
+    if (raw.content && typeof raw.content === "string") return prepareLessonContent(raw.content);
+    if (raw.content && typeof raw.content === "object") {
+      if (typeof raw.content.textContent === "string") return raw.content.textContent;
+      // If content is an object that resembles the lesson JSON, return it directly
+      return raw.content;
+    }
+
+    // Rich text shapes: blocks (array) or ops (quill)
+    if (Array.isArray(raw.blocks)) {
+      return raw.blocks.map((b: any) => b.text || b.content || b).filter(Boolean);
+    }
+
+    if (Array.isArray(raw.ops)) {
+      return raw.ops.map((op: any) => (typeof op.insert === "string" ? op.insert : "")).join("");
+    }
+
+    // Default: return the object as-is so renderLessonContent can inspect it
+    return raw;
+  }
+
+  // Fallback to string
+  return String(raw);
+}
+
 function renderArray(arr: any[]) {
   return (
     <ul className="list-disc pl-6">

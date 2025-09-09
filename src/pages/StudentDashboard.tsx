@@ -53,8 +53,8 @@ import {
   Zap,
   Filter,
   Search,
-    FileText,
-    RefreshCw,
+  FileText,
+  RefreshCw,
   Plus,
   Eye,
   StopCircle,
@@ -77,6 +77,11 @@ import {
   EndLessonSessionRequest,
 } from "@/services/lessonSessionService";
 import { authService } from "@/services/authService";
+import {
+  renderLessonContent,
+  prepareLessonContent,
+  contentToHtmlString,
+} from "@/lib/lessonRenderer";
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/anansiai";
@@ -96,7 +101,10 @@ function formatLessonSummary(lesson: any): string {
         .join(" • ");
     }
     if (raw.blocks && Array.isArray(raw.blocks)) {
-      return raw.blocks.map((b: any) => b.text || b.content || "").filter(Boolean).join(" ");
+      return raw.blocks
+        .map((b: any) => b.text || b.content || "")
+        .filter(Boolean)
+        .join(" ");
     }
     try {
       return JSON.stringify(raw);
@@ -122,7 +130,10 @@ function formatLessonSummary(lesson: any): string {
             .join(" • ");
         }
         if (parsed.blocks && Array.isArray(parsed.blocks)) {
-          return parsed.blocks.map((b: any) => b.text || b.content || "").filter(Boolean).join(" ");
+          return parsed.blocks
+            .map((b: any) => b.text || b.content || "")
+            .filter(Boolean)
+            .join(" ");
         }
         // Fallback to stringified summary of keys
         if (parsed.title) return String(parsed.title);
@@ -137,71 +148,91 @@ function formatLessonSummary(lesson: any): string {
   return String(raw);
 }
 
-import MarkdownIt from 'markdown-it';
+import MarkdownIt from "markdown-it";
 
 function generateEditableLessonHtml(lesson: any, subject: any) {
   const title = lesson.title || lesson.lessonTitle || "Untitled Lesson";
   const subjectName = subject?.name || lesson.subjectName || "Subject";
-  const author = (lesson.author && (lesson.author.name || lesson.author)) || "Instructor";
-  const duration = lesson.duration || '';
+  const author =
+    (lesson.author && (lesson.author.name || lesson.author)) || "Instructor";
+  const duration = lesson.duration || "";
 
   const md = new MarkdownIt({ html: true, linkify: true, typographer: true });
 
   const cleanText = (s: string) => {
-    if (s === null || s === undefined) return '';
+    if (s === null || s === undefined) return "";
     let t = String(s);
-    t = t.replace(/^>\s?/gm, '');
-    t = t.replace(/^("|')+/g, '').replace(/("|')+$/g, '');
-    t = t.replace(/\r\n?/g, '\n');
+    t = t.replace(/^>\s?/gm, "");
+    t = t.replace(/^("|')+/g, "").replace(/("|')+$/g, "");
+    t = t.replace(/\r\n?/g, "\n");
     return t.trim();
   };
 
   const renderNode = (node: any, depth = 0): string => {
-    if (node === null || node === undefined) return '';
-    if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') {
+    if (node === null || node === undefined) return "";
+    if (
+      typeof node === "string" ||
+      typeof node === "number" ||
+      typeof node === "boolean"
+    ) {
       const s = cleanText(String(node));
-      const looksLikeMarkdown = /(^#\s)|(^-\s)|(^\*\s)|(```)|(\*\*)|(\n\s*-\s)/m.test(s);
+      const looksLikeMarkdown =
+        /(^#\s)|(^-\s)|(^\*\s)|(```)|(\*\*)|(\n\s*-\s)/m.test(s);
       if (looksLikeMarkdown) return md.render(s);
-      return `<p>${escapeHtml(s).replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>')}</p>`;
+      return `<p>${escapeHtml(s).replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`;
     }
 
     if (Array.isArray(node)) {
-      const primitives = node.every((x: any) => typeof x !== 'object');
+      const primitives = node.every((x: any) => typeof x !== "object");
       if (primitives) {
-        return `<ul>${node.map((it: any) => `<li>${escapeHtml(String(cleanText(it)))}</li>`).join('')}</ul>`;
+        return `<ul>${node.map((it: any) => `<li>${escapeHtml(String(cleanText(it)))}</li>`).join("")}</ul>`;
       }
-      return node.map((item: any, idx: number) => {
-        const title = item.title || item.heading || item.topic || item.name;
-        const headingTag = depth < 2 ? `h${Math.min(3 + depth, 6)}` : 'h6';
-        let out = '';
-        if (title) out += `<${headingTag}><strong>${escapeHtml(String(title))}</strong></${headingTag}>`;
-        out += renderNode(item, depth + 1);
-        return out;
-      }).join('');
+      return node
+        .map((item: any, idx: number) => {
+          const title = item.title || item.heading || item.topic || item.name;
+          const headingTag = depth < 2 ? `h${Math.min(3 + depth, 6)}` : "h6";
+          let out = "";
+          if (title)
+            out += `<${headingTag}><strong>${escapeHtml(String(title))}</strong></${headingTag}>`;
+          out += renderNode(item, depth + 1);
+          return out;
+        })
+        .join("");
     }
 
     // object
-    for (const k of ['intro', 'summary', 'description', 'content', 'body', 'text']) {
+    for (const k of [
+      "intro",
+      "summary",
+      "description",
+      "content",
+      "body",
+      "text",
+    ]) {
       if (node[k]) return renderNode(node[k], depth);
     }
 
-    let out = '';
+    let out = "";
     Object.entries(node).forEach(([k, v]) => {
-      const headingTag = depth < 2 ? `h${Math.min(3 + depth, 6)}` : 'h6';
+      const headingTag = depth < 2 ? `h${Math.min(3 + depth, 6)}` : "h6";
       out += `<${headingTag}><strong>${escapeHtml(String(k))}</strong></${headingTag}>`;
       out += renderNode(v, depth + 1);
     });
     return out;
   };
 
-  const content = lesson.content ?? lesson.description ?? '';
+  const content = lesson.content ?? lesson.description ?? "";
   let parsed: any = null;
-  if (typeof content === 'object') parsed = content;
-  else if (typeof content === 'string') {
-    try { parsed = JSON.parse(content); } catch { parsed = content; }
+  if (typeof content === "object") parsed = content;
+  else if (typeof content === "string") {
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      parsed = content;
+    }
   }
 
-  const body = renderNode(parsed || '');
+  const body = renderNode(parsed || "");
 
   const html = `<!doctype html>
 <html>
@@ -229,7 +260,7 @@ function generateEditableLessonHtml(lesson: any, subject: any) {
   </header>
   <main>
     <h2>Description</h2>
-    <div>${renderNode(lesson.description || '')}</div>
+    <div>${renderNode(lesson.description || "")}</div>
     <h2>Content</h2>
     ${body}
   </main>
@@ -241,23 +272,25 @@ function generateEditableLessonHtml(lesson: any, subject: any) {
 
 function openEditableLesson(lesson: any, subject: any) {
   const html = generateEditableLessonHtml(lesson, subject);
-  const title = lesson.title || lesson.lessonTitle || 'Lesson';
+  const title = lesson.title || lesson.lessonTitle || "Lesson";
   const handler = (window as any).__openEditableLesson;
-  if (typeof handler === 'function') {
+  if (typeof handler === "function") {
     try {
       handler(title, html);
       return;
     } catch (e) {
-      console.error('Editable handler failed, falling back to download:', e);
+      console.error("Editable handler failed, falling back to download:", e);
     }
   }
 
   // Fallback: download the HTML file so the user can open in Word or an editor
-  const blob = new Blob([html], { type: 'text/html' });
+  const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
-  const safe = String(title).replace(/[^a-z0-9\-]/gi, '_').toLowerCase();
+  const safe = String(title)
+    .replace(/[^a-z0-9\-]/gi, "_")
+    .toLowerCase();
   a.download = `${safe}.html`;
   document.body.appendChild(a);
   a.click();
@@ -266,13 +299,13 @@ function openEditableLesson(lesson: any, subject: any) {
 }
 
 function escapeHtml(str: any) {
-  if (str === null || str === undefined) return '';
+  if (str === null || str === undefined) return "";
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/\'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\'/g, "&#39;");
 }
 
 // Lesson timing interfaces
@@ -518,17 +551,27 @@ const StudentDashboard = () => {
   const [studentProfileLoading, setStudentProfileLoading] = useState(true);
 
   // Helper function to build courses from student-subjects data
-  const buildCoursesFromStudentSubjects = (studentSubjectsData: any[]): Course[] => {
+  const buildCoursesFromStudentSubjects = (
+    studentSubjectsData: any[],
+  ): Course[] => {
     return studentSubjectsData.map((studentSubject) => {
-      const subjectName = studentSubject.subjectName || studentSubject.name || 'Unknown Subject';
+      const subjectName =
+        studentSubject.subjectName || studentSubject.name || "Unknown Subject";
       const lessons = studentSubject.lessons || [];
 
-      const completedLessons = lessons.filter((lesson: any) => lesson.isCompleted).length;
-      const totalDuration = lessons.reduce((sum: number, lesson: any) => sum + (lesson.duration || 45), 0);
+      const completedLessons = lessons.filter(
+        (lesson: any) => lesson.isCompleted,
+      ).length;
+      const totalDuration = lessons.reduce(
+        (sum: number, lesson: any) => sum + (lesson.duration || 45),
+        0,
+      );
 
-      const difficulty = lessons.some((l: any) => l.difficulty === 'advanced') ? 'advanced' as const :
-                        lessons.some((l: any) => l.difficulty === 'intermediate') ? 'intermediate' as const :
-                        'beginner' as const;
+      const difficulty = lessons.some((l: any) => l.difficulty === "advanced")
+        ? ("advanced" as const)
+        : lessons.some((l: any) => l.difficulty === "intermediate")
+          ? ("intermediate" as const)
+          : ("beginner" as const);
 
       return {
         id: `course_${studentSubject.subjectId || studentSubject.id}`,
@@ -536,29 +579,40 @@ const StudentDashboard = () => {
         subject: {
           id: studentSubject.subjectId || studentSubject.id,
           name: subjectName,
-          description: studentSubject.description || '',
-          isActive: true
+          description: studentSubject.description || "",
+          isActive: true,
         },
         lessons: lessons.map((lesson: any) => ({
           id: lesson.lessonId || lesson.id,
-          subjectId: lesson.subjectId || studentSubject.subjectId || studentSubject.id,
-          title: lesson.title || 'Untitled Lesson',
-          description: lesson.content || lesson.description || '',
-          content: lesson.content || '',
+          subjectId:
+            lesson.subjectId || studentSubject.subjectId || studentSubject.id,
+          title: lesson.title || "Untitled Lesson",
+          description: lesson.content || lesson.description || "",
+          content: lesson.content || "",
           duration: lesson.duration || 45,
-          difficulty: lesson.difficulty || 'intermediate' as const,
+          difficulty: lesson.difficulty || ("intermediate" as const),
           isCompleted: lesson.isCompleted || false,
           order: lesson.order || 1,
-          type: 'reading' as const
+          type: "reading" as const,
         })),
         totalLessons: lessons.length,
         completedLessons: completedLessons,
-        progress: lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0,
+        progress:
+          lessons.length > 0
+            ? Math.round((completedLessons / lessons.length) * 100)
+            : 0,
         instructor: `${subjectName} Instructor`,
         estimatedDuration: Math.round(totalDuration / 60),
         difficulty,
-        enrollmentDate: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-        lastAccessedDate: Math.random() > 0.3 ? new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+        enrollmentDate: new Date(
+          Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+        lastAccessedDate:
+          Math.random() > 0.3
+            ? new Date(
+                Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
+              ).toISOString()
+            : undefined,
       };
     });
   };
@@ -567,8 +621,8 @@ const StudentDashboard = () => {
   const getStudentDisplayName = () => {
     // Check if we have student profile data from the API
     if (studentProfile) {
-      const firstName = studentProfile.firstName || '';
-      const lastName = studentProfile.lastName || '';
+      const firstName = studentProfile.firstName || "";
+      const lastName = studentProfile.lastName || "";
       if (firstName && lastName) {
         return `${firstName} ${lastName}`;
       } else if (firstName) {
@@ -576,7 +630,7 @@ const StudentDashboard = () => {
       } else if (lastName) {
         return lastName;
       } else if (studentProfile.email) {
-        return studentProfile.email.split('@')[0]; // Use email username as fallback
+        return studentProfile.email.split("@")[0]; // Use email username as fallback
       }
     }
 
@@ -591,8 +645,103 @@ const StudentDashboard = () => {
 
   const studentDisplayName = getStudentDisplayName();
 
+  // Subject viewer state: fetch subject lessons as JSON, convert to HTML and display
+  const [subjectViewerOpen, setSubjectViewerOpen] = useState(false);
+  const [viewingSubjectHtml, setViewingSubjectHtml] = useState<string | null>(
+    null,
+  );
+  const [viewingSubjectTitle, setViewingSubjectTitle] = useState<string | null>(
+    null,
+  );
+  // Track which lessons are expanded (inline book view)
+  const [expandedLessons, setExpandedLessons] = useState<
+    Record<string, boolean>
+  >({});
 
+  const handleViewSubject = async (subject: any) => {
+    try {
+      setLastAction(
+        `Fetching ${subject.name || subject.subjectName || subject.id}...`,
+      );
 
+      // Try to fetch student-subjects from the student-scoped endpoint
+      const res = await axiosClient
+        .get("/api/students/student-subjects")
+        .catch((e) => ({ error: e }));
+
+      let subjectData: any = null;
+      if (res && !res.error && Array.isArray(res.data)) {
+        subjectData = res.data.find(
+          (s: any) =>
+            (s.subjectId || s.id) === (subject.id || subject.subjectId),
+        );
+      }
+
+      // Fallback to local state
+      if (!subjectData) {
+        subjectData = subjects.find(
+          (s: any) =>
+            s.id === subject.id ||
+            s.subjectId === subject.id ||
+            s.subjectId === subject.subjectId,
+        );
+      }
+
+      if (!subjectData) {
+        setLastAction("Subject data not found");
+        return;
+      }
+
+      const lessonsList = Array.isArray(subjectData.lessons)
+        ? subjectData.lessons
+        : [];
+
+      // Build combined HTML by extracting the <main>...</main> from each lesson HTML
+      const fragments: string[] = [];
+      for (const lesson of lessonsList) {
+        try {
+          const full = generateEditableLessonHtml(lesson, subjectData);
+          const mainMatch = full.match(/<main[\s\S]*?<\/main>/i);
+          let main: string;
+          if (mainMatch) {
+            main = mainMatch[0];
+          } else {
+            // Use prepared content and serialize to safe HTML string
+            const prepared = prepareLessonContent(
+              lesson.content || lesson.description,
+            );
+            const htmlString = contentToHtmlString(prepared);
+            main = `<div><h3>${escapeHtml(lesson.title || "Lesson")}</h3>${htmlString}</div>`;
+          }
+          fragments.push(main);
+        } catch (e) {
+          const prepared = prepareLessonContent(
+            lesson.content || lesson.description,
+          );
+          const htmlString = contentToHtmlString(prepared);
+          fragments.push(
+            `<div><h3>${escapeHtml(lesson.title || "Lesson")}</h3>${htmlString}</div>`,
+          );
+        }
+      }
+
+      const combined = `
+        <div style="max-width:900px;margin:16px auto;padding:12px">
+          <h1>${escapeHtml(subjectData.subjectName || subjectData.name || "Subject")}</h1>
+          ${fragments.join('<hr style="margin:20px 0"/>')}
+        </div>
+      `;
+
+      setViewingSubjectHtml(combined);
+      setViewingSubjectTitle(
+        subjectData.subjectName || subjectData.name || "Subject",
+      );
+      setSubjectViewerOpen(true);
+    } catch (err) {
+      console.error("Failed to load subject content", err);
+      setLastAction("Failed to load subject content");
+    }
+  };
 
   // New state for enhanced functionality
   const [searchQuery, setSearchQuery] = useState("");
@@ -616,15 +765,18 @@ const StudentDashboard = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [educationLoading, setEducationLoading] = useState(false);
-    const [lessonsApiError, setLessonsApiError] = useState<string | null>(null);
-  const [lessonSessionError, setLessonSessionError] = useState<string | null>(null);
+  const [lessonsApiError, setLessonsApiError] = useState<string | null>(null);
+  const [lessonSessionError, setLessonSessionError] = useState<string | null>(
+    null,
+  );
 
   // Lesson timing state
-  const [activeLessonSession, setActiveLessonSession] = useState<LessonSession | null>(null);
+  const [activeLessonSession, setActiveLessonSession] =
+    useState<LessonSession | null>(null);
   const [lessonTimer, setLessonTimer] = useState<number>(0); // seconds since start
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
 
-    // Auto-clear action feedback after 3 seconds
+  // Auto-clear action feedback after 3 seconds
   useEffect(() => {
     if (lastAction) {
       const timer = setTimeout(() => setLastAction(null), 3000);
@@ -639,7 +791,9 @@ const StudentDashboard = () => {
     if (activeLessonSession && !activeLessonSession.isPaused) {
       interval = setInterval(() => {
         const now = new Date();
-        const elapsed = Math.floor((now.getTime() - activeLessonSession.startTime.getTime()) / 1000);
+        const elapsed = Math.floor(
+          (now.getTime() - activeLessonSession.startTime.getTime()) / 1000,
+        );
         const pausedTime = activeLessonSession.pausedTime || 0;
         setLessonTimer(elapsed - Math.floor(pausedTime / 1000));
       }, 1000);
@@ -669,7 +823,7 @@ const StudentDashboard = () => {
             "student_001", // TODO: Get from auth context
             1, // TODO: Get from auth context
             "idle",
-            "User has been idle for 30 seconds"
+            "User has been idle for 30 seconds",
           );
         }
       }, 30000); // 30 seconds idle time
@@ -684,7 +838,7 @@ const StudentDashboard = () => {
           "student_001", // TODO: Get from auth context
           1, // TODO: Get from auth context
           "focus_loss",
-          "User switched away from the application"
+          "User switched away from the application",
         );
       }
     };
@@ -698,31 +852,37 @@ const StudentDashboard = () => {
           "student_001", // TODO: Get from auth context
           1, // TODO: Get from auth context
           "tab_switch",
-          "User is leaving the lesson page"
+          "User is leaving the lesson page",
         );
       }
     };
 
     // Activity event listeners
-    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    activityEvents.forEach(event => {
+    const activityEvents = [
+      "mousedown",
+      "mousemove",
+      "keypress",
+      "scroll",
+      "touchstart",
+    ];
+    activityEvents.forEach((event) => {
       document.addEventListener(event, resetIdleTimer, true);
     });
 
     // Focus/visibility event listeners
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     // Initialize idle timer
     resetIdleTimer();
 
     return () => {
       clearTimeout(idleTimer);
-      activityEvents.forEach(event => {
+      activityEvents.forEach((event) => {
         document.removeEventListener(event, resetIdleTimer, true);
       });
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [activeLessonSession?.apiSessionId]);
 
@@ -736,11 +896,14 @@ const StudentDashboard = () => {
         institutionId: 1, // TODO: Get from auth context
       };
 
-      const apiResponse = await lessonSessionService.startLessonSession(sessionRequest);
+      const apiResponse =
+        await lessonSessionService.startLessonSession(sessionRequest);
 
       if (!apiResponse.success) {
         console.error("Failed to start lesson session:", apiResponse.error);
-        setLessonSessionError(apiResponse.error || "Failed to start lesson session");
+        setLessonSessionError(
+          apiResponse.error || "Failed to start lesson session",
+        );
         setLastAction(`Error starting lesson: ${apiResponse.error}`);
         return;
       }
@@ -771,7 +934,7 @@ const StudentDashboard = () => {
           sessionRequest.studentId,
           sessionRequest.institutionId,
           "start",
-          `Started lesson: ${lesson.title}`
+          `Started lesson: ${lesson.title}`,
         );
       }
 
@@ -809,7 +972,7 @@ const StudentDashboard = () => {
           "student_001", // TODO: Get from auth context
           1, // TODO: Get from auth context
           "pause",
-          `Paused lesson: ${activeLessonSession.lessonTitle}`
+          `Paused lesson: ${activeLessonSession.lessonTitle}`,
         );
       }
     }
@@ -834,7 +997,7 @@ const StudentDashboard = () => {
           "student_001", // TODO: Get from auth context
           1, // TODO: Get from auth context
           "resume",
-          `Resumed lesson: ${activeLessonSession.lessonTitle}`
+          `Resumed lesson: ${activeLessonSession.lessonTitle}`,
         );
       }
     }
@@ -843,8 +1006,12 @@ const StudentDashboard = () => {
   const endLesson = async () => {
     if (activeLessonSession) {
       const endTime = new Date();
-      const totalTime = Math.floor((endTime.getTime() - activeLessonSession.startTime.getTime()) / 1000);
-      const pausedTime = Math.floor((activeLessonSession.pausedTime || 0) / 1000);
+      const totalTime = Math.floor(
+        (endTime.getTime() - activeLessonSession.startTime.getTime()) / 1000,
+      );
+      const pausedTime = Math.floor(
+        (activeLessonSession.pausedTime || 0) / 1000,
+      );
       const effectiveTime = totalTime - pausedTime;
 
       try {
@@ -857,7 +1024,7 @@ const StudentDashboard = () => {
 
           const apiResponse = await lessonSessionService.endLessonSession(
             activeLessonSession.apiSessionId,
-            endRequest
+            endRequest,
           );
 
           if (!apiResponse.success) {
@@ -871,12 +1038,12 @@ const StudentDashboard = () => {
             "student_001", // TODO: Get from auth context
             1, // TODO: Get from auth context
             "end",
-            `Completed lesson: ${activeLessonSession.lessonTitle} in ${Math.floor(effectiveTime / 60)}m ${effectiveTime % 60}s`
+            `Completed lesson: ${activeLessonSession.lessonTitle} in ${Math.floor(effectiveTime / 60)}m ${effectiveTime % 60}s`,
           );
         }
 
         setLastAction(
-          `Completed lesson: ${activeLessonSession.lessonTitle} (${Math.floor(effectiveTime / 60)}m ${effectiveTime % 60}s)`
+          `Completed lesson: ${activeLessonSession.lessonTitle} (${Math.floor(effectiveTime / 60)}m ${effectiveTime % 60}s)`,
         );
 
         console.log("Lesson completed:", {
@@ -906,7 +1073,7 @@ const StudentDashboard = () => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Load student profile from API
@@ -917,29 +1084,38 @@ const StudentDashboard = () => {
 
       // REMOVED: Admin-only endpoint that causes 403 errors for students
       // const studentsResponse = await axiosClient.get('/api/Users/students')
-      const studentsResponse = { error: 'admin-endpoint-disabled' }
-        .then(res => {
+      const studentsResponse = { error: "admin-endpoint-disabled" }
+        .then((res) => {
           console.log("👤 Students API response:", res.data);
           return res.data;
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("❌ Students API error:", err.message);
           // Check if it's a 403 Forbidden error
-          if (err.message.includes('403') || err.message.includes('Forbidden')) {
-            console.warn("�� Student profile access forbidden - using mock profile");
-            return { error: 'forbidden', code: 403 };
+          if (
+            err.message.includes("403") ||
+            err.message.includes("Forbidden")
+          ) {
+            console.warn(
+              "�� Student profile access forbidden - using mock profile",
+            );
+            return { error: "forbidden", code: 403 };
           }
           return { error: err.message };
         });
 
-      if (studentsResponse && !studentsResponse.error && Array.isArray(studentsResponse)) {
+      if (
+        studentsResponse &&
+        !studentsResponse.error &&
+        Array.isArray(studentsResponse)
+      ) {
         // For now, get the first student (in a real app, you'd filter by current user ID)
         const currentStudent = studentsResponse[0];
         if (currentStudent) {
           setStudentProfile(currentStudent);
           console.log("✅ Student profile loaded:", {
-            name: `${currentStudent.firstName || ''} ${currentStudent.lastName || ''}`.trim(),
-            email: currentStudent.email
+            name: `${currentStudent.firstName || ""} ${currentStudent.lastName || ""}`.trim(),
+            email: currentStudent.email,
           });
           return; // Successfully loaded, exit early
         }
@@ -947,33 +1123,45 @@ const StudentDashboard = () => {
 
       // If first attempt failed or no students found, try alternative approach
       if (studentsResponse?.code !== 403) {
-        console.warn("⚠️ Failed to load student profile:", studentsResponse?.error || 'Invalid response');
+        console.warn(
+          "⚠️ Failed to load student profile:",
+          studentsResponse?.error || "Invalid response",
+        );
         console.log("🔄 Trying alternative student role API...");
 
         try {
           // REMOVED: Admin-only endpoint that causes 403 errors for students
           // const studentRoleResponse = await axiosClient.get('/api/Users/get-users-by-role?roleName=Student')
-          const studentRoleResponse = { error: 'admin-endpoint-disabled' }
-            .then(res => {
+          const studentRoleResponse = { error: "admin-endpoint-disabled" }
+            .then((res) => {
               console.log("👤 Student role API response:", res.data);
               return res.data;
             })
-            .catch(err => {
+            .catch((err) => {
               console.error("��� Student role API error:", err.message);
-              if (err.message.includes('403') || err.message.includes('Forbidden')) {
-                console.warn("🔒 Student role access forbidden - using mock profile");
-                return { error: 'forbidden', code: 403 };
+              if (
+                err.message.includes("403") ||
+                err.message.includes("Forbidden")
+              ) {
+                console.warn(
+                  "🔒 Student role access forbidden - using mock profile",
+                );
+                return { error: "forbidden", code: 403 };
               }
               return { error: err.message };
             });
 
-          if (studentRoleResponse && !studentRoleResponse.error && Array.isArray(studentRoleResponse)) {
+          if (
+            studentRoleResponse &&
+            !studentRoleResponse.error &&
+            Array.isArray(studentRoleResponse)
+          ) {
             const currentStudent = studentRoleResponse[0];
             if (currentStudent) {
               setStudentProfile(currentStudent);
               console.log("✅ Student profile loaded via role API:", {
-                name: `${currentStudent.firstName || ''} ${currentStudent.lastName || ''}`.trim(),
-                email: currentStudent.email
+                name: `${currentStudent.firstName || ""} ${currentStudent.lastName || ""}`.trim(),
+                email: currentStudent.email,
               });
               return; // Successfully loaded, exit early
             }
@@ -989,14 +1177,13 @@ const StudentDashboard = () => {
         firstName: "Alex",
         lastName: "Student",
         email: "alex.student@school.edu",
-        id: "student_001"
+        id: "student_001",
       };
       setStudentProfile(mockProfile);
       console.log("✅ Mock student profile loaded:", {
         name: `${mockProfile.firstName} ${mockProfile.lastName}`,
-        email: mockProfile.email
+        email: mockProfile.email,
       });
-
     } catch (error) {
       console.error("❌ Error loading student profile:", error);
       // Fallback to basic mock profile
@@ -1004,7 +1191,7 @@ const StudentDashboard = () => {
         firstName: "Student",
         lastName: "",
         email: "student@school.edu",
-        id: "student_default"
+        id: "student_default",
       });
     } finally {
       setStudentProfileLoading(false);
@@ -1030,52 +1217,85 @@ const StudentDashboard = () => {
 
         try {
           // Load educational data directly from API endpoints (teacher-created content)
-          console.log("🔄 Fetching student data from consolidated API endpoint...");
-          console.log("🔑 Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
+          console.log(
+            "🔄 Fetching student data from consolidated API endpoint...",
+          );
+          console.log(
+            "🔑 Using auth token:",
+            localStorage.getItem("anansi_token") ? "Present" : "Missing",
+          );
 
           // Only call the student-scoped endpoint - no admin endpoints
-          const studentSubjectsResponse = await axiosClient.get('/api/students/student-subjects')
-            .then(res => {
-              console.log("🎓 Student subjects with lessons API response:", res.data);
+          const studentSubjectsResponse = await axiosClient
+            .get("/api/students/student-subjects")
+            .then((res) => {
+              console.log(
+                "🎓 Student subjects with lessons API response:",
+                res.data,
+              );
               return res.data;
             })
-            .catch(err => {
+            .catch((err) => {
               console.error("❌ Student subjects API error:", err.message);
               return { error: err.message };
             });
 
           // Handle assignments (direct API response)
-          if (studentSubjectsResponse && !studentSubjectsResponse.error && Array.isArray(studentSubjectsResponse)) {
+          if (
+            studentSubjectsResponse &&
+            !studentSubjectsResponse.error &&
+            Array.isArray(studentSubjectsResponse)
+          ) {
             // Extract assignments from student-subjects consolidated response
             const allAssignments = [];
 
-            console.log("🔍 Full student-subjects response structure:", JSON.stringify(studentSubjectsResponse, null, 2));
+            console.log(
+              "🔍 Full student-subjects response structure:",
+              JSON.stringify(studentSubjectsResponse, null, 2),
+            );
 
             studentSubjectsResponse.forEach((studentSubject, index) => {
               console.log(`🔍 StudentSubject ${index}:`, studentSubject);
-              console.log(`📝 Object keys:`, Object.keys(studentSubject));
-              const subjectName = studentSubject.subjectName || studentSubject.name || 'Unknown Subject';
+              console.log(`��� Object keys:`, Object.keys(studentSubject));
+              const subjectName =
+                studentSubject.subjectName ||
+                studentSubject.name ||
+                "Unknown Subject";
 
               // Extract assignments from lessons (where they're actually located)
-              if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
+              if (
+                studentSubject.lessons &&
+                Array.isArray(studentSubject.lessons)
+              ) {
                 studentSubject.lessons.forEach((lesson, lessonIndex) => {
-                  console.log(`  📚 Lesson ${lessonIndex} keys:`, Object.keys(lesson));
+                  console.log(
+                    `  📚 Lesson ${lessonIndex} keys:`,
+                    Object.keys(lesson),
+                  );
 
                   if (lesson.assignments && Array.isArray(lesson.assignments)) {
-                    console.log(`  ✅ Processing ${lesson.assignments.length} assignments from lesson: ${lesson.title}`);
+                    console.log(
+                      `  ✅ Processing ${lesson.assignments.length} assignments from lesson: ${lesson.title}`,
+                    );
 
                     lesson.assignments
-                      .filter(assignment => assignment.isActive !== false)
-                      .forEach(assignment => {
+                      .filter((assignment) => assignment.isActive !== false)
+                      .forEach((assignment) => {
                         allAssignments.push({
-                          id: assignment.assignmentId?.toString() || assignment.id?.toString() || 'unknown',
-                          title: assignment.title || 'Untitled Assignment',
-                          dueDate: assignment.deadline || new Date().toISOString(),
-                          priority: 'medium' as const,
-                          status: 'pending' as const,
-                          courseTitle: lesson.title || `Lesson ${assignment.lessonId}`,
+                          id:
+                            assignment.assignmentId?.toString() ||
+                            assignment.id?.toString() ||
+                            "unknown",
+                          title: assignment.title || "Untitled Assignment",
+                          dueDate:
+                            assignment.deadline || new Date().toISOString(),
+                          priority: "medium" as const,
+                          status: "pending" as const,
+                          courseTitle:
+                            lesson.title || `Lesson ${assignment.lessonId}`,
                           subject: subjectName,
-                          description: assignment.content || 'Assignment content'
+                          description:
+                            assignment.content || "Assignment content",
                         });
                       });
                   }
@@ -1083,76 +1303,121 @@ const StudentDashboard = () => {
               }
 
               // Also check for assignments at subject level (fallback)
-              if (studentSubject.assignments && Array.isArray(studentSubject.assignments)) {
-                console.log(`✅ Processing ${studentSubject.assignments.length} assignments from subject:`, subjectName);
+              if (
+                studentSubject.assignments &&
+                Array.isArray(studentSubject.assignments)
+              ) {
+                console.log(
+                  `✅ Processing ${studentSubject.assignments.length} assignments from subject:`,
+                  subjectName,
+                );
                 studentSubject.assignments
-                  .filter(assignment => assignment.isActive !== false)
-                  .forEach(assignment => {
+                  .filter((assignment) => assignment.isActive !== false)
+                  .forEach((assignment) => {
                     // Find the corresponding lesson if available
                     let lesson = null;
-                    if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
-                      lesson = studentSubject.lessons.find(l =>
-                        l.lessonId === assignment.lessonId || l.id === assignment.lessonId
+                    if (
+                      studentSubject.lessons &&
+                      Array.isArray(studentSubject.lessons)
+                    ) {
+                      lesson = studentSubject.lessons.find(
+                        (l) =>
+                          l.lessonId === assignment.lessonId ||
+                          l.id === assignment.lessonId,
                       );
                     }
 
                     allAssignments.push({
-                      id: assignment.assignmentId?.toString() || assignment.id?.toString() || 'unknown',
-                      title: assignment.title || 'Untitled Assignment',
+                      id:
+                        assignment.assignmentId?.toString() ||
+                        assignment.id?.toString() ||
+                        "unknown",
+                      title: assignment.title || "Untitled Assignment",
                       dueDate: assignment.deadline || new Date().toISOString(),
-                      priority: 'medium' as const,
-                      status: 'pending' as const,
-                      courseTitle: lesson?.title || `Lesson ${assignment.lessonId}`,
+                      priority: "medium" as const,
+                      status: "pending" as const,
+                      courseTitle:
+                        lesson?.title || `Lesson ${assignment.lessonId}`,
                       subject: subjectName,
-                      description: assignment.content || 'Assignment content'
+                      description: assignment.content || "Assignment content",
                     });
                   });
               }
             });
 
             setRealAssignments(allAssignments);
-            console.log("✅ Assignments loaded from student-subjects only:", allAssignments.length);
-            console.log("📋 Assignment details:", allAssignments.map(a => ({
-              id: a.id,
-              title: a.title,
-              status: a.status,
-              priority: a.priority,
-              dueDate: a.dueDate,
-              subject: a.subject
-            })));
-            console.log("🔄 setRealAssignments called with:", allAssignments.length, "assignments from student-subjects endpoint only");
+            console.log(
+              "✅ Assignments loaded from student-subjects only:",
+              allAssignments.length,
+            );
+            console.log(
+              "📋 Assignment details:",
+              allAssignments.map((a) => ({
+                id: a.id,
+                title: a.title,
+                status: a.status,
+                priority: a.priority,
+                dueDate: a.dueDate,
+                subject: a.subject,
+              })),
+            );
+            console.log(
+              "🔄 setRealAssignments called with:",
+              allAssignments.length,
+              "assignments from student-subjects endpoint only",
+            );
 
             // Also extract and set subjects from the same response
-            const formattedSubjects = studentSubjectsResponse.map(studentSubject => ({
-              id: studentSubject.subjectId || studentSubject.id,
-              name: studentSubject.subjectName || studentSubject.name || 'Unknown Subject',
-              description: studentSubject.description || '',
-              isActive: true
-            }));
+            const formattedSubjects = studentSubjectsResponse.map(
+              (studentSubject) => ({
+                id: studentSubject.subjectId || studentSubject.id,
+                name:
+                  studentSubject.subjectName ||
+                  studentSubject.name ||
+                  "Unknown Subject",
+                description: studentSubject.description || "",
+                isActive: true,
+              }),
+            );
             setSubjects(formattedSubjects);
-            console.log("✅ Loaded subjects from student-subjects:", formattedSubjects.length);
+            console.log(
+              "✅ Loaded subjects from student-subjects:",
+              formattedSubjects.length,
+            );
 
             // Extract lessons from the same response
             const allLessons = [];
-            studentSubjectsResponse.forEach(studentSubject => {
-              if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
+            studentSubjectsResponse.forEach((studentSubject) => {
+              if (
+                studentSubject.lessons &&
+                Array.isArray(studentSubject.lessons)
+              ) {
                 studentSubject.lessons
-                  .filter(lesson => lesson.isActive !== false)
-                  .forEach(lesson => {
-                    const subjectName = studentSubject.subjectName || studentSubject.name || 'General Subject';
+                  .filter((lesson) => lesson.isActive !== false)
+                  .forEach((lesson) => {
+                    const subjectName =
+                      studentSubject.subjectName ||
+                      studentSubject.name ||
+                      "General Subject";
 
                     allLessons.push({
                       id: lesson.lessonId || lesson.id,
-                      subjectId: lesson.subjectId || studentSubject.subjectId || studentSubject.id,
+                      subjectId:
+                        lesson.subjectId ||
+                        studentSubject.subjectId ||
+                        studentSubject.id,
                       subjectName: subjectName,
-                      title: lesson.title || 'Untitled Lesson',
-                      description: lesson.content || lesson.description || 'AI-generated content',
-                      content: lesson.content || '',
+                      title: lesson.title || "Untitled Lesson",
+                      description:
+                        lesson.content ||
+                        lesson.description ||
+                        "AI-generated content",
+                      content: lesson.content || "",
                       duration: lesson.duration || 45,
-                      difficulty: 'intermediate' as const,
+                      difficulty: "intermediate" as const,
                       isCompleted: lesson.isCompleted || false,
                       order: lesson.order || 1,
-                      type: 'reading' as const
+                      type: "reading" as const,
                     });
                   });
               }
@@ -1160,15 +1425,21 @@ const StudentDashboard = () => {
 
             setLessons(allLessons);
             setLessonsApiError(null);
-            console.log("✅ Loaded lessons from student-subjects:", allLessons.length);
+            console.log(
+              "✅ Loaded lessons from student-subjects:",
+              allLessons.length,
+            );
 
             // Show success message to student
             if (dashboardAssignments.length > 0) {
-              console.log("��� Student can now view teacher-created assignments");
-
+              console.log(
+                "��� Student can now view teacher-created assignments",
+              );
             }
           } else {
-            console.warn("⚠️ Failed to load student subjects data for assignments");
+            console.warn(
+              "⚠️ Failed to load student subjects data for assignments",
+            );
           }
 
           // Subjects are now extracted together with assignments above
@@ -1176,12 +1447,23 @@ const StudentDashboard = () => {
           // Lessons are now extracted together with assignments and subjects above
 
           // Build courses from student-subjects data (no separate API calls needed)
-          if (studentSubjectsResponse && !studentSubjectsResponse.error && Array.isArray(studentSubjectsResponse)) {
-            const builtCourses = buildCoursesFromStudentSubjects(studentSubjectsResponse);
+          if (
+            studentSubjectsResponse &&
+            !studentSubjectsResponse.error &&
+            Array.isArray(studentSubjectsResponse)
+          ) {
+            const builtCourses = buildCoursesFromStudentSubjects(
+              studentSubjectsResponse,
+            );
             setCourses(builtCourses);
-            console.log("✅ Built courses from student-subjects data:", builtCourses.length);
+            console.log(
+              "✅ Built courses from student-subjects data:",
+              builtCourses.length,
+            );
           } else {
-            console.warn("⚠️ Failed to build courses from student-subjects data");
+            console.warn(
+              "⚠️ Failed to build courses from student-subjects data",
+            );
             setCourses([]);
           }
         } catch (error) {
@@ -1195,13 +1477,19 @@ const StudentDashboard = () => {
 
           // Use a timeout to ensure state has been updated
           setTimeout(() => {
-            console.log(`📊 Final Summary: assignments loaded, lessons loaded, subjects attempted`);
-            console.log("🎯 Final assignment state check will be logged separately after state updates");
+            console.log(
+              `📊 Final Summary: assignments loaded, lessons loaded, subjects attempted`,
+            );
+            console.log(
+              "🎯 Final assignment state check will be logged separately after state updates",
+            );
           }, 100);
         }
 
         // Use mock data since student-dashboard endpoint doesn't exist (404)
-        console.log("📝 Using mock dashboard data - student-dashboard endpoint not available");
+        console.log(
+          "📝 Using mock dashboard data - student-dashboard endpoint not available",
+        );
         const mockData: StudentDashboardData = {
           profile: {
             id: "student_001",
@@ -1253,22 +1541,25 @@ const StudentDashboard = () => {
               dataRetentionPreference: "standard",
             },
           },
-          enrolledCourses: courses.length > 0 ? courses.map(course => ({
-            id: course.id,
-            title: course.title,
-            instructor: course.instructor,
-            progress: course.progress,
-            completedLessons: course.completedLessons,
-            totalLessons: course.totalLessons,
-            recentGrade: undefined,
-            aiRecommended: false,
-            subject: {
-              subjectId: course.subject.id,
-              name: course.subject.name,
-              description: course.subject.description,
-            },
-            upcomingAssignments: [], // Use real assignments from API
-          })) : [],
+          enrolledCourses:
+            courses.length > 0
+              ? courses.map((course) => ({
+                  id: course.id,
+                  title: course.title,
+                  instructor: course.instructor,
+                  progress: course.progress,
+                  completedLessons: course.completedLessons,
+                  totalLessons: course.totalLessons,
+                  recentGrade: undefined,
+                  aiRecommended: false,
+                  subject: {
+                    subjectId: course.subject.id,
+                    name: course.subject.name,
+                    description: course.subject.description,
+                  },
+                  upcomingAssignments: [], // Use real assignments from API
+                }))
+              : [],
           behaviorSummary: {
             currentMood: "Focused",
             riskLevel: "low",
@@ -1309,8 +1600,7 @@ const StudentDashboard = () => {
             {
               id: "ach_003",
               title: "Biology Expert",
-              description:
-                "Scored above 90% on 5 consecutive biology quizzes",
+              description: "Scored above 90% on 5 consecutive biology quizzes",
               category: "Subject Mastery",
               earnedDate: new Date(
                 Date.now() - 3 * 24 * 60 * 60 * 1000,
@@ -1345,8 +1635,7 @@ const StudentDashboard = () => {
               id: "notif_003",
               type: "grade",
               title: "Biology Quiz Graded",
-              message:
-                "Great work! You scored 94% on your latest biology quiz",
+              message: "Great work! You scored 94% on your latest biology quiz",
               timestamp: new Date(
                 Date.now() - 24 * 60 * 60 * 1000,
               ).toISOString(),
@@ -1371,12 +1660,33 @@ const StudentDashboard = () => {
   // Log final state when assignments and lessons are loaded
   useEffect(() => {
     if (!loading && !assignmentsLoading && !educationLoading) {
-      console.log(`📊 Final Summary: ${realAssignments.length} assignments, ${lessons.length} lessons, ${subjects.length} subjects`);
-      console.log("🎯 Real assignments:", realAssignments.map(a => ({ title: a.title, subject: a.subject })));
-      console.log("📚 Lessons:", lessons.map(l => ({ title: l.title, subjectName: l.subjectName || `Subject ${l.subjectId}` })));
-      console.log("📖 Subjects:", subjects.map(s => ({ name: s.name, id: s.id })));
+      console.log(
+        `📊 Final Summary: ${realAssignments.length} assignments, ${lessons.length} lessons, ${subjects.length} subjects`,
+      );
+      console.log(
+        "🎯 Real assignments:",
+        realAssignments.map((a) => ({ title: a.title, subject: a.subject })),
+      );
+      console.log(
+        "📚 Lessons:",
+        lessons.map((l) => ({
+          title: l.title,
+          subjectName: l.subjectName || `Subject ${l.subjectId}`,
+        })),
+      );
+      console.log(
+        "📖 Subjects:",
+        subjects.map((s) => ({ name: s.name, id: s.id })),
+      );
     }
-  }, [loading, assignmentsLoading, educationLoading, realAssignments.length, lessons.length, subjects.length]);
+  }, [
+    loading,
+    assignmentsLoading,
+    educationLoading,
+    realAssignments.length,
+    lessons.length,
+    subjects.length,
+  ]);
 
   // Debug effect for assignments tab visibility
   useEffect(() => {
@@ -1394,7 +1704,9 @@ const StudentDashboard = () => {
     const loadSubjects = async () => {
       if (selectedTab !== "subjects") return;
       try {
-        console.log("📚 Loading student subjects from /api/students/student-subjects...");
+        console.log(
+          "📚 Loading student subjects from /api/students/student-subjects...",
+        );
         setEducationLoading(true);
         setLessonsApiError(null);
 
@@ -1413,14 +1725,23 @@ const StudentDashboard = () => {
 
           const allLessons: any[] = [];
           data.forEach((studentSubject: any) => {
-            if (studentSubject.lessons && Array.isArray(studentSubject.lessons)) {
+            if (
+              studentSubject.lessons &&
+              Array.isArray(studentSubject.lessons)
+            ) {
               studentSubject.lessons
                 .filter((lesson: any) => lesson.isActive !== false)
                 .forEach((lesson: any) => {
                   allLessons.push({
                     id: lesson.lessonId || lesson.id,
-                    subjectId: lesson.subjectId || studentSubject.subjectId || studentSubject.id,
-                    subjectName: studentSubject.subjectName || studentSubject.name || "General Subject",
+                    subjectId:
+                      lesson.subjectId ||
+                      studentSubject.subjectId ||
+                      studentSubject.id,
+                    subjectName:
+                      studentSubject.subjectName ||
+                      studentSubject.name ||
+                      "General Subject",
                     title: lesson.title || "Untitled Lesson",
                     description: lesson.content || lesson.description || "",
                     content: lesson.content || "",
@@ -1438,20 +1759,29 @@ const StudentDashboard = () => {
             setSubjects(formattedSubjects);
             setLessons(allLessons);
             setLessonsApiError(null);
-            console.log(`✅ Loaded ${formattedSubjects.length} subjects and ${allLessons.length} lessons from student-subjects`);
+            console.log(
+              `✅ Loaded ${formattedSubjects.length} subjects and ${allLessons.length} lessons from student-subjects`,
+            );
           }
         } else {
           setSubjects([]);
           setLessons([]);
           setLessonsApiError("No subjects returned from API");
-          console.warn("⚠️ student-subjects endpoint returned unexpected data:", data);
+          console.warn(
+            "⚠️ student-subjects endpoint returned unexpected data:",
+            data,
+          );
         }
       } catch (err: any) {
         if (cancelled) return;
         console.error("❌ Failed to load student subjects:", err);
         setSubjects([]);
         setLessons([]);
-        setLessonsApiError(err.response?.data?.message || err.message || "Failed to load subjects");
+        setLessonsApiError(
+          err.response?.data?.message ||
+            err.message ||
+            "Failed to load subjects",
+        );
       } finally {
         if (!cancelled) setEducationLoading(false);
       }
@@ -1463,7 +1793,6 @@ const StudentDashboard = () => {
       cancelled = true;
     };
   }, [selectedTab]);
-
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
@@ -1580,24 +1909,25 @@ const StudentDashboard = () => {
   // Filter courses based on search and filters
   const getFilteredCourses = (): DashboardCourse[] => {
     // Use real courses if available, otherwise fall back to enrolledCourses
-    let filtered: DashboardCourse[] = courses.length > 0
-      ? courses.map(course => ({
-          id: course.id,
-          title: course.title,
-          instructor: course.instructor,
-          progress: course.progress,
-          completedLessons: course.completedLessons,
-          totalLessons: course.totalLessons,
-          recentGrade: undefined,
-          aiRecommended: false,
-          subject: {
-            subjectId: course.subject.id,
-            name: course.subject.name,
-            description: course.subject.description,
-          },
-          upcomingAssignments: [],
-        }))
-      : enrolledCourses;
+    let filtered: DashboardCourse[] =
+      courses.length > 0
+        ? courses.map((course) => ({
+            id: course.id,
+            title: course.title,
+            instructor: course.instructor,
+            progress: course.progress,
+            completedLessons: course.completedLessons,
+            totalLessons: course.totalLessons,
+            recentGrade: undefined,
+            aiRecommended: false,
+            subject: {
+              subjectId: course.subject.id,
+              name: course.subject.name,
+              description: course.subject.description,
+            },
+            upcomingAssignments: [],
+          }))
+        : enrolledCourses;
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -1875,7 +2205,9 @@ const StudentDashboard = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">
-            {studentProfileLoading ? "Loading student profile..." : "Loading your personalized dashboard..."}
+            {studentProfileLoading
+              ? "Loading student profile..."
+              : "Loading your personalized dashboard..."}
           </p>
         </div>
       </div>
@@ -1913,6 +2245,38 @@ const StudentDashboard = () => {
 
   return (
     <div className="student-dashboard min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Subject Viewer Dialog - shows converted HTML content for a subject */}
+      <Dialog open={subjectViewerOpen} onOpenChange={setSubjectViewerOpen}>
+        <DialogContent className="max-w-4xl w-full">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">
+                {viewingSubjectTitle || "Subject Content"}
+              </h3>
+              <p className="text-sm text-gray-500">
+                Converted lessons and content
+              </p>
+            </div>
+            <div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSubjectViewerOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+
+          <div
+            className="prose max-w-full"
+            style={{ lineHeight: 1.6 }}
+            dangerouslySetInnerHTML={{
+              __html: viewingSubjectHtml || "<p>No content available</p>",
+            }}
+          />
+        </DialogContent>
+      </Dialog>
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1945,8 +2309,6 @@ const StudentDashboard = () => {
             </div>
 
             <div className="flex items-center gap-4">
-
-
               {/* Mood Indicator */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-lg">
@@ -2100,7 +2462,6 @@ const StudentDashboard = () => {
         </div>
       </header>
 
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 student-dashboard">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Content */}
@@ -2239,7 +2600,7 @@ const StudentDashboard = () => {
                       </div>
                     </CardContent>
                   </Card>
-                                </div>
+                </div>
 
                 {/* Current Lesson Status */}
                 {activeLessonSession && (
@@ -2249,7 +2610,10 @@ const StudentDashboard = () => {
                         <Timer className="w-5 h-5 text-blue-600" />
                         Current Lesson Session
                         {activeLessonSession.apiSessionId && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs ml-auto">
+                          <Badge
+                            variant="secondary"
+                            className="bg-green-100 text-green-700 text-xs ml-auto"
+                          >
                             Active
                           </Badge>
                         )}
@@ -2271,24 +2635,40 @@ const StudentDashboard = () => {
                               {formatTime(lessonTimer)}
                             </div>
                             <p className="text-xs text-gray-500">
-                              {activeLessonSession.isPaused ? "Paused" : "Active"}
+                              {activeLessonSession.isPaused
+                                ? "Paused"
+                                : "Active"}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex gap-2">
                           {activeLessonSession.isPaused ? (
-                            <Button size="sm" onClick={resumeLesson} className="flex-1">
+                            <Button
+                              size="sm"
+                              onClick={resumeLesson}
+                              className="flex-1"
+                            >
                               <Play className="w-4 h-4 mr-2" />
                               Resume
                             </Button>
                           ) : (
-                            <Button size="sm" variant="outline" onClick={pauseLesson} className="flex-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={pauseLesson}
+                              className="flex-1"
+                            >
                               <Pause className="w-4 h-4 mr-2" />
                               Pause
                             </Button>
                           )}
-                          <Button size="sm" variant="destructive" onClick={endLesson} className="flex-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={endLesson}
+                            className="flex-1"
+                          >
                             <StopCircle className="w-4 h-4 mr-2" />
                             End Lesson
                           </Button>
@@ -2498,7 +2878,10 @@ const StudentDashboard = () => {
                           <div className="p-4 text-center text-gray-600">
                             <BookOpen className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                             <p className="text-sm">No assignments available</p>
-                            <p className="text-xs mt-1">Check back later for new assignments from your teachers</p>
+                            <p className="text-xs mt-1">
+                              Check back later for new assignments from your
+                              teachers
+                            </p>
                           </div>
                         )}
 
@@ -2627,7 +3010,6 @@ const StudentDashboard = () => {
                   </Card>
                 </div>
 
-
                 {/* Subjects Overview - Educational Hierarchy */}
                 <Card className="border-green-200 bg-gradient-to-r from-green-50 to-blue-50">
                   <CardHeader>
@@ -2696,6 +3078,20 @@ const StudentDashboard = () => {
                                   {subjectCourse?.completedLessons || 0}{" "}
                                   completed
                                 </span>
+                              </div>
+
+                              <div className="mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewSubject(subject);
+                                  }}
+                                  className="w-full text-xs"
+                                >
+                                  View Content
+                                </Button>
                               </div>
                             </div>
                           );
@@ -2795,9 +3191,12 @@ const StudentDashboard = () => {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <h4 className="font-medium text-orange-900">Unable to Start Lesson</h4>
+                        <h4 className="font-medium text-orange-900">
+                          Unable to Start Lesson
+                        </h4>
                         <p className="text-sm text-orange-700 mt-1">
-                          There was a problem starting your lesson session. Please try again.
+                          There was a problem starting your lesson session.
+                          Please try again.
                         </p>
                       </div>
                       <Button
@@ -2812,8 +3211,6 @@ const StudentDashboard = () => {
                   </div>
                 )}
 
-
-
                 {/* Loading State */}
                 {educationLoading && (
                   <div className="text-center py-12">
@@ -2823,33 +3220,35 @@ const StudentDashboard = () => {
                 )}
 
                 {/* Connection Error State - Only show if no lessons and there's an error */}
-                {!educationLoading && lessonsApiError && lessons.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="max-w-md mx-auto">
-                      <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-orange-500" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        Unable to Load Lessons
-                      </h3>
-                      <p className="text-gray-600 mb-6">
-                        {lessonsApiError.includes('Access denied')
-                          ? 'Access denied - please contact your teacher or administrator.'
-                          : 'We\'re having trouble connecting to the server. Please try again in a moment.'}
-                      </p>
-                      <Button
-                        onClick={() => {
-                          setEducationLoading(true);
-                          setLessonsApiError(null);
-                          // Retry loading lessons directly from API
-                          window.location.reload(); // Simple reload to retry the API calls
-                        }}
-                        className="mt-4"
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Try Again
-                      </Button>
+                {!educationLoading &&
+                  lessonsApiError &&
+                  lessons.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="max-w-md mx-auto">
+                        <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-orange-500" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          Unable to Load Lessons
+                        </h3>
+                        <p className="text-gray-600 mb-6">
+                          {lessonsApiError.includes("Access denied")
+                            ? "Access denied - please contact your teacher or administrator."
+                            : "We're having trouble connecting to the server. Please try again in a moment."}
+                        </p>
+                        <Button
+                          onClick={() => {
+                            setEducationLoading(true);
+                            setLessonsApiError(null);
+                            // Retry loading lessons directly from API
+                            window.location.reload(); // Simple reload to retry the API calls
+                          }}
+                          className="mt-4"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Try Again
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* No Lessons Available State */}
                 {!educationLoading &&
@@ -2862,10 +3261,12 @@ const StudentDashboard = () => {
                           No Lessons Available
                         </h3>
                         <p className="text-gray-600 mb-4">
-                          Your lessons will appear here once they've been added to your curriculum.
+                          Your lessons will appear here once they've been added
+                          to your curriculum.
                         </p>
                         <p className="text-sm text-gray-500">
-                          Contact your instructor if you believe you should have access to lessons.
+                          Contact your instructor if you believe you should have
+                          access to lessons.
                         </p>
                       </div>
                     </div>
@@ -2880,7 +3281,11 @@ const StudentDashboard = () => {
                       );
                       // Transform lesson to course-like object for display compatibility
                       const courseDisplay = {
-                        id: (lesson.id || lesson.lessonId || `lesson_${lesson.title || 'unknown'}`).toString(),
+                        id: (
+                          lesson.id ||
+                          lesson.lessonId ||
+                          `lesson_${lesson.title || "unknown"}`
+                        ).toString(),
                         title: lesson.title || "Untitled Lesson",
                         instructor: subject?.name || "Unknown Subject",
                         progress: lesson.isCompleted ? 100 : 0,
@@ -2952,7 +3357,7 @@ const StudentDashboard = () => {
                                   <div>{courseDisplay.instructor}</div>
                                   <div className="flex items-center gap-1 text-xs text-gray-500">
                                     <Clock className="w-3 h-3" />
-                                    {lesson.duration} minutes • Lesson{" "}
+                                    {lesson.duration} minutes �� Lesson{" "}
                                     {lesson.order}
                                   </div>
                                   <div className="text-xs text-gray-500 line-clamp-1">
@@ -2989,22 +3394,25 @@ const StudentDashboard = () => {
                                 <span>{lesson.duration} min duration</span>
                               </div>
 
-                                                            {/* Lesson timing display for active lesson */}
-                              {activeLessonSession && activeLessonSession.lessonId === lesson.id && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Timer className="w-4 h-4 text-blue-600" />
-                                      <span className="text-sm font-medium text-blue-700">
-                                        {activeLessonSession.isPaused ? "Paused" : "Active"}
-                                      </span>
-                                    </div>
-                                    <div className="text-lg font-mono font-bold text-blue-700">
-                                      {formatTime(lessonTimer)}
+                              {/* Lesson timing display for active lesson */}
+                              {activeLessonSession &&
+                                activeLessonSession.lessonId === lesson.id && (
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <Timer className="w-4 h-4 text-blue-600" />
+                                        <span className="text-sm font-medium text-blue-700">
+                                          {activeLessonSession.isPaused
+                                            ? "Paused"
+                                            : "Active"}
+                                        </span>
+                                      </div>
+                                      <div className="text-lg font-mono font-bold text-blue-700">
+                                        {formatTime(lessonTimer)}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
 
                               <div className="flex gap-2">
                                 <Button
@@ -3012,22 +3420,25 @@ const StudentDashboard = () => {
                                   variant="outline"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setLastAction(`Viewing ${courseDisplay.title}`);
-                                    navigate("/lesson-content", {
-                                      state: {
-                                        type: "lesson",
-                                        lesson: lesson,
-                                        subject: subject?.name || "Unknown Subject",
-                                        lessonId: lesson.id,
-                                      },
+                                    setLastAction(
+                                      `Toggling book view for ${courseDisplay.title}`,
+                                    );
+                                    setExpandedLessons((prev) => {
+                                      const opening = !prev[lesson.id];
+                                      return opening
+                                        ? { [lesson.id]: true }
+                                        : {};
                                     });
                                   }}
                                 >
                                   <FileText className="w-4 h-4 mr-2" />
-                                  View
+                                  {expandedLessons[lesson.id]
+                                    ? "Close"
+                                    : "Read"}
                                 </Button>
                                 {/* Show different buttons based on lesson state */}
-                                {activeLessonSession && activeLessonSession.lessonId === lesson.id ? (
+                                {activeLessonSession &&
+                                activeLessonSession.lessonId === lesson.id ? (
                                   // Active lesson controls
                                   <>
                                     {activeLessonSession.isPaused ? (
@@ -3071,27 +3482,10 @@ const StudentDashboard = () => {
                                     </Button>
                                   </>
                                 ) : courseDisplay.isCompleted ? (
-                                  // Completed lesson
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setLastAction(`Reviewing ${courseDisplay.title}`);
-                                      navigate("/lesson-content", {
-                                        state: {
-                                          type: "lesson",
-                                          lesson: lesson,
-                                          subject: subject?.name || "Unknown Subject",
-                                          lessonId: lesson.id,
-                                        },
-                                      });
-                                    }}
-                                  >
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    Review
-                                  </Button>
+                                  // Completed lesson - show status only, use single Read button to open content
+                                  <span className="text-sm text-gray-600 flex-1">
+                                    Completed
+                                  </span>
                                 ) : (
                                   // Start new lesson
                                   <Button
@@ -3107,6 +3501,17 @@ const StudentDashboard = () => {
                                   </Button>
                                 )}
                               </div>
+
+                              {/* Inline book-style lesson content */}
+                              {expandedLessons[lesson.id] && (
+                                <div className="mt-4 p-6 bg-white border border-gray-200 rounded-lg prose">
+                                  {renderLessonContent(
+                                    prepareLessonContent(
+                                      lesson.content || lesson.description,
+                                    ),
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -3176,8 +3581,15 @@ const StudentDashboard = () => {
                               realAssignments.filter((a) => {
                                 const dueDate = new Date(a.dueDate);
                                 const now = new Date();
-                                const daysDiff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                                return a.status === "pending" && daysDiff <= 7 && daysDiff >= 0;
+                                const daysDiff = Math.ceil(
+                                  (dueDate.getTime() - now.getTime()) /
+                                    (1000 * 60 * 60 * 24),
+                                );
+                                return (
+                                  a.status === "pending" &&
+                                  daysDiff <= 7 &&
+                                  daysDiff >= 0
+                                );
                               }).length
                             ) : (
                               0
@@ -3202,8 +3614,10 @@ const StudentDashboard = () => {
                             {assignmentsLoading ? (
                               <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                             ) : (
-                              realAssignments.filter((a) =>
-                                a.questionType === 3 || a.title.toLowerCase().includes('quiz')
+                              realAssignments.filter(
+                                (a) =>
+                                  a.questionType === 3 ||
+                                  a.title.toLowerCase().includes("quiz"),
                               ).length
                             )}
                           </p>
@@ -3273,11 +3687,14 @@ const StudentDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     {/* Debug info - temporary */}
-                    {process.env.NODE_ENV === 'development' && (
+                    {process.env.NODE_ENV === "development" && (
                       <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
                         Debug: realAssignments.length = {realAssignments.length}
                         {realAssignments.length > 0 && (
-                          <div>Assignments: {realAssignments.map(a => a.title).join(', ')}</div>
+                          <div>
+                            Assignments:{" "}
+                            {realAssignments.map((a) => a.title).join(", ")}
+                          </div>
                         )}
                       </div>
                     )}
@@ -3285,86 +3702,89 @@ const StudentDashboard = () => {
                       {assignmentsLoading ? (
                         <div className="text-center py-8">
                           <div className="w-6 h-6 mx-auto mb-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                          <p className="text-gray-600">Loading assignments...</p>
+                          <p className="text-gray-600">
+                            Loading assignments...
+                          </p>
                         </div>
                       ) : realAssignments.length > 0 ? (
-                        realAssignments
-                          .map((assignment, index: number) => (
-                            <div
-                              key={assignment.id}
-                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
-                            >
-                              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
-                                    {assignment.title}
-                                  </h3>
-                                  <p className="text-xs sm:text-sm text-gray-600 truncate">
-                                    {assignment.subject || 'Teacher Assignment'} • {assignment.courseTitle || 'Course'}
-                                  </p>
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1">
-                                    <span className="text-xs text-gray-500">
-                                      Due:{" "}
-                                      {new Date(assignment.dueDate).toLocaleDateString()}
-                                    </span>
-                                    <Badge
-                                      variant={
-                                        assignment.priority === "high"
-                                          ? "destructive"
-                                          : "default"
-                                      }
-                                      className="text-xs w-fit"
-                                    >
-                                      {assignment.priority} priority
-                                    </Badge>
-                                  </div>
-                                </div>
+                        realAssignments.map((assignment, index: number) => (
+                          <div
+                            key={assignment.id}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
+                          >
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                               </div>
-                              <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs"
-                                  onClick={() => {
-                                    setLastAction(
-                                      `Viewing assignment: ${assignment.title}`,
-                                    );
-                                    // View real assignment details
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                                  <span className="hidden sm:inline">View</span>
-                                  <span className="sm:hidden">View</span>
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="text-xs"
-                                  onClick={() => {
-                                    setLastAction(
-                                      `Starting assignment: ${assignment.title}`,
-                                    );
-                                    navigate("/lesson-content", {
-                                      state: {
-                                        type: "assignment",
-                                        title: assignment.title,
-                                        course: assignment.courseTitle || 'Course',
-                                        dueDate: assignment.dueDate,
-                                      },
-                                    });
-                                  }}
-                                >
-                                  <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                                  <span className="hidden sm:inline">
-                                    Start
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
+                                  {assignment.title}
+                                </h3>
+                                <p className="text-xs sm:text-sm text-gray-600 truncate">
+                                  {assignment.subject || "Teacher Assignment"} •{" "}
+                                  {assignment.courseTitle || "Course"}
+                                </p>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1">
+                                  <span className="text-xs text-gray-500">
+                                    Due:{" "}
+                                    {new Date(
+                                      assignment.dueDate,
+                                    ).toLocaleDateString()}
                                   </span>
-                                  <span className="sm:hidden">Start</span>
-                                </Button>
+                                  <Badge
+                                    variant={
+                                      assignment.priority === "high"
+                                        ? "destructive"
+                                        : "default"
+                                    }
+                                    className="text-xs w-fit"
+                                  >
+                                    {assignment.priority} priority
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
-                          ))
+                            <div className="flex items-center gap-2 justify-end sm:justify-start flex-shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs"
+                                onClick={() => {
+                                  setLastAction(
+                                    `Viewing assignment: ${assignment.title}`,
+                                  );
+                                  // View real assignment details
+                                }}
+                              >
+                                <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                                <span className="hidden sm:inline">View</span>
+                                <span className="sm:hidden">View</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => {
+                                  setLastAction(
+                                    `Starting assignment: ${assignment.title}`,
+                                  );
+                                  navigate("/lesson-content", {
+                                    state: {
+                                      type: "assignment",
+                                      title: assignment.title,
+                                      course:
+                                        assignment.courseTitle || "Course",
+                                      dueDate: assignment.dueDate,
+                                    },
+                                  });
+                                }}
+                              >
+                                <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                                <span className="hidden sm:inline">Start</span>
+                                <span className="sm:hidden">Start</span>
+                              </Button>
+                            </div>
+                          </div>
+                        ))
                       ) : (
                         <div className="text-center py-6 sm:py-8 text-gray-500">
                           <BookOpen className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 opacity-50" />
@@ -3375,7 +3795,8 @@ const StudentDashboard = () => {
                             Assignments from your teachers will appear here
                           </p>
                           <p className="text-xs text-gray-400">
-                            Check the Overview tab to see if assignments are loading
+                            Check the Overview tab to see if assignments are
+                            loading
                           </p>
                           <Button
                             size="sm"
@@ -3383,7 +3804,9 @@ const StudentDashboard = () => {
                             className="mt-4"
                             onClick={() => {
                               setSelectedTab("overview");
-                              setLastAction("Switched to Overview to check assignments");
+                              setLastAction(
+                                "Switched to Overview to check assignments",
+                              );
                             }}
                           >
                             Check Overview Tab
@@ -3394,7 +3817,7 @@ const StudentDashboard = () => {
                   </CardContent>
                 </Card>
 
-{/* Real Quizzes from API */}
+                {/* Real Quizzes from API */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -3410,34 +3833,69 @@ const StudentDashboard = () => {
                       {assignmentsLoading ? (
                         <div className="text-center py-8">
                           <div className="w-6 h-6 mx-auto mb-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                          <p className="text-gray-600">Loading quizzes and assessments...</p>
+                          <p className="text-gray-600">
+                            Loading quizzes and assessments...
+                          </p>
                         </div>
                       ) : realAssignments.length > 0 ? (
                         <div className="grid gap-4">
                           {realAssignments
                             .slice(0, 3)
                             .map((assignment, index) => {
-                              const isCompleted = assignment.status === 'completed';
-                              const isUpcoming = new Date(assignment.dueDate) > new Date();
-                              const bgColor = isCompleted ? 'bg-green-50 border-green-200' : isUpcoming ? 'bg-blue-50 border-blue-200' : 'bg-yellow-50 border-yellow-200';
-                              const iconColor = isCompleted ? 'text-green-600' : isUpcoming ? 'text-blue-600' : 'text-yellow-600';
-                              const IconComponent = isCompleted ? CheckCircle : isUpcoming ? Clock : AlertTriangle;
-                              
+                              const isCompleted =
+                                assignment.status === "completed";
+                              const isUpcoming =
+                                new Date(assignment.dueDate) > new Date();
+                              const bgColor = isCompleted
+                                ? "bg-green-50 border-green-200"
+                                : isUpcoming
+                                  ? "bg-blue-50 border-blue-200"
+                                  : "bg-yellow-50 border-yellow-200";
+                              const iconColor = isCompleted
+                                ? "text-green-600"
+                                : isUpcoming
+                                  ? "text-blue-600"
+                                  : "text-yellow-600";
+                              const IconComponent = isCompleted
+                                ? CheckCircle
+                                : isUpcoming
+                                  ? Clock
+                                  : AlertTriangle;
+
                               return (
-                                <div key={assignment.id} className={`flex items-center justify-between p-4 border rounded-lg ${bgColor}`}>
+                                <div
+                                  key={assignment.id}
+                                  className={`flex items-center justify-between p-4 border rounded-lg ${bgColor}`}
+                                >
                                   <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{backgroundColor: isCompleted ? '#dcfce7' : isUpcoming ? '#dbeafe' : '#fef3c7'}}>
-                                      <IconComponent className={`w-6 h-6 ${iconColor}`} />
+                                    <div
+                                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                                      style={{
+                                        backgroundColor: isCompleted
+                                          ? "#dcfce7"
+                                          : isUpcoming
+                                            ? "#dbeafe"
+                                            : "#fef3c7",
+                                      }}
+                                    >
+                                      <IconComponent
+                                        className={`w-6 h-6 ${iconColor}`}
+                                      />
                                     </div>
                                     <div>
                                       <h3 className="font-semibold text-gray-900">
                                         {assignment.title}
                                       </h3>
                                       <p className="text-sm text-gray-600">
-                                        {assignment.description || assignment.courseTitle}
+                                        {assignment.description ||
+                                          assignment.courseTitle}
                                       </p>
                                       <span className="text-xs text-gray-500">
-                                        {isCompleted ? 'Completed' : isUpcoming ? `Due ${new Date(assignment.dueDate).toLocaleDateString()}` : 'Available now'}
+                                        {isCompleted
+                                          ? "Completed"
+                                          : isUpcoming
+                                            ? `Due ${new Date(assignment.dueDate).toLocaleDateString()}`
+                                            : "Available now"}
                                       </span>
                                     </div>
                                   </div>
@@ -3447,7 +3905,9 @@ const StudentDashboard = () => {
                                         <div className="text-lg font-bold text-green-600">
                                           Done
                                         </div>
-                                        <div className="text-xs text-gray-500">Completed</div>
+                                        <div className="text-xs text-gray-500">
+                                          Completed
+                                        </div>
                                       </div>
                                     ) : (
                                       <>
@@ -3455,7 +3915,9 @@ const StudentDashboard = () => {
                                           size="sm"
                                           variant="outline"
                                           onClick={() => {
-                                            setLastAction(`Previewing ${assignment.title}`);
+                                            setLastAction(
+                                              `Previewing ${assignment.title}`,
+                                            );
                                           }}
                                         >
                                           <Eye className="w-4 h-4 mr-2" />
@@ -3464,7 +3926,9 @@ const StudentDashboard = () => {
                                         <Button
                                           size="sm"
                                           onClick={() => {
-                                            setLastAction(`Taking ${assignment.title}`);
+                                            setLastAction(
+                                              `Taking ${assignment.title}`,
+                                            );
                                             navigate("/lesson-content", {
                                               state: {
                                                 type: "assignment",
@@ -3483,21 +3947,28 @@ const StudentDashboard = () => {
                                   </div>
                                 </div>
                               );
-                            })
-                          }
+                            })}
                           {realAssignments.length === 0 && (
                             <div className="text-center py-8">
                               <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                              <p className="text-gray-600 font-medium">No assignments available</p>
-                              <p className="text-sm text-gray-500">Assignments from your teachers will appear here</p>
+                              <p className="text-gray-600 font-medium">
+                                No assignments available
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Assignments from your teachers will appear here
+                              </p>
                             </div>
                           )}
                         </div>
                       ) : (
                         <div className="text-center py-8">
                           <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                          <p className="text-gray-600 font-medium">No assignments available</p>
-                          <p className="text-sm text-gray-500">Assignments from your teachers will appear here</p>
+                          <p className="text-gray-600 font-medium">
+                            No assignments available
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Assignments from your teachers will appear here
+                          </p>
                         </div>
                       )}
                     </div>
@@ -3648,7 +4119,9 @@ const StudentDashboard = () => {
                   <Calendar className="w-5 h-5" />
                   Today
                 </CardTitle>
-                <CardDescription className="text-xs">Your next events</CardDescription>
+                <CardDescription className="text-xs">
+                  Your next events
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -3656,12 +4129,19 @@ const StudentDashboard = () => {
                     { time: "9:00 AM", subject: "Advanced Math" },
                     { time: "11:00 AM", subject: "Biology Lab" },
                     { time: "2:00 PM", subject: "History Essay" },
-                  ].slice(0,3).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="text-sm text-gray-800 truncate">{item.subject}</div>
-                      <div className="text-xs text-gray-500">{item.time}</div>
-                    </div>
-                  ))}
+                  ]
+                    .slice(0, 3)
+                    .map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="text-sm text-gray-800 truncate">
+                          {item.subject}
+                        </div>
+                        <div className="text-xs text-gray-500">{item.time}</div>
+                      </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -3678,11 +4158,15 @@ const StudentDashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-700">Focus</p>
-                    <p className="text-lg font-semibold">{Math.round(behaviorSummary.focusScore * 100)}%</p>
+                    <p className="text-lg font-semibold">
+                      {Math.round(behaviorSummary.focusScore * 100)}%
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-700">Engagement</p>
-                    <p className="text-lg font-semibold">{Math.round(behaviorSummary.engagementScore * 100)}%</p>
+                    <p className="text-lg font-semibold">
+                      {Math.round(behaviorSummary.engagementScore * 100)}%
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -3697,8 +4181,19 @@ const StudentDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600 line-clamp-3">Based on your recent activity, try using visual aids for calculus topics — you show a 15% improvement with visual materials.</p>
-                <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setSelectedTab('analytics')}>View Details</Button>
+                <p className="text-sm text-gray-600 line-clamp-3">
+                  Based on your recent activity, try using visual aids for
+                  calculus topics — you show a 15% improvement with visual
+                  materials.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 w-full"
+                  onClick={() => setSelectedTab("analytics")}
+                >
+                  View Details
+                </Button>
               </CardContent>
             </Card>
 
@@ -3709,19 +4204,39 @@ const StudentDashboard = () => {
                   <BookOpen className="w-5 h-5" />
                   Subjects
                 </CardTitle>
-                <CardDescription className="text-xs">Top subjects</CardDescription>
+                <CardDescription className="text-xs">
+                  Top subjects
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  {subjects.slice(0,5).map((s) => (
-                    <div key={s.id} className="flex items-center justify-between">
+                  {subjects.slice(0, 5).map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between"
+                    >
                       <div className="truncate">{s.name}</div>
-                      <div className="text-xs text-gray-500">{Math.round((courses.find(c => c.subject.id === s.id)?.progress || 0))}%</div>
+                      <div className="text-xs text-gray-500">
+                        {Math.round(
+                          courses.find((c) => c.subject.id === s.id)
+                            ?.progress || 0,
+                        )}
+                        %
+                      </div>
                     </div>
                   ))}
-                  {subjects.length === 0 && <p className="text-xs text-gray-500">No subjects yet</p>}
+                  {subjects.length === 0 && (
+                    <p className="text-xs text-gray-500">No subjects yet</p>
+                  )}
                 </div>
-                <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setSelectedTab('subjects')}>View All</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 w-full"
+                  onClick={() => setSelectedTab("subjects")}
+                >
+                  View All
+                </Button>
               </CardContent>
             </Card>
 
@@ -3731,8 +4246,19 @@ const StudentDashboard = () => {
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button onClick={() => setIsChatOpen(true)} className="w-full justify-start">Chat AI</Button>
-                <Button variant="outline" onClick={() => setIsProfileOpen(true)} className="w-full justify-start">Profile</Button>
+                <Button
+                  onClick={() => setIsChatOpen(true)}
+                  className="w-full justify-start"
+                >
+                  Chat AI
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsProfileOpen(true)}
+                  className="w-full justify-start"
+                >
+                  Profile
+                </Button>
               </CardContent>
             </Card>
           </div>

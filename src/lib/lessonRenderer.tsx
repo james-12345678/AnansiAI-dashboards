@@ -2,6 +2,60 @@ import React from "react";
 
 type LessonJson = Record<string, any>;
 
+export function prepareLessonContent(raw: any): string | LessonJson | null {
+  if (raw === null || raw === undefined) return null;
+
+  // If it's a string, try to detect JSON and parse it
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        // Not valid JSON, return the raw string
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  // If it's an object, try common shapes (textContent, content, blocks, ops)
+  if (typeof raw === "object") {
+    // Common shape: { textContent: "..." }
+    if (typeof raw.textContent === "string") return raw.textContent;
+
+    // Nested content: { content: "..." } or { content: { textContent: '...' } }
+    if (raw.content && typeof raw.content === "string")
+      return prepareLessonContent(raw.content);
+    if (raw.content && typeof raw.content === "object") {
+      if (typeof raw.content.textContent === "string")
+        return raw.content.textContent;
+      // If content is an object that resembles the lesson JSON, return it directly
+      return raw.content;
+    }
+
+    // Rich text shapes: blocks (array) or ops (quill)
+    if (Array.isArray(raw.blocks)) {
+      return raw.blocks
+        .map((b: any) => b.text || b.content || b)
+        .filter(Boolean);
+    }
+
+    if (Array.isArray(raw.ops)) {
+      return raw.ops
+        .map((op: any) => (typeof op.insert === "string" ? op.insert : ""))
+        .join("");
+    }
+
+    // Default: return the object as-is so renderLessonContent can inspect it
+    return raw;
+  }
+
+  // Fallback to string
+  return String(raw);
+}
+
 function renderArray(arr: any[]) {
   return (
     <ul className="list-disc pl-6">
@@ -16,13 +70,23 @@ function renderArray(arr: any[]) {
 
 function renderObject(obj: LessonJson) {
   // If this object looks like a key-concept item
-  if (obj && typeof obj === "object" && obj.concept && obj.detailedExplanation) {
+  if (
+    obj &&
+    typeof obj === "object" &&
+    (obj.concept || obj.title || obj.name) &&
+    (obj.detailedExplanation || obj.description || obj.summary)
+  ) {
+    const concept = obj.concept || obj.title || obj.name;
+    const detailedExplanation =
+      obj.detailedExplanation || obj.description || obj.summary || "";
     return (
       <div className="mb-4">
-        <h4 className="text-md font-semibold">{obj.concept}</h4>
-        <p className="text-sm text-gray-700 mt-1">{obj.detailedExplanation}</p>
+        <h4 className="text-md font-semibold">{concept}</h4>
+        <p className="text-sm text-gray-700 mt-1">{detailedExplanation}</p>
         {obj.realLifeConnections && (
-          <p className="text-sm text-gray-600 italic mt-1">{obj.realLifeConnections}</p>
+          <p className="text-sm text-gray-600 italic mt-1">
+            {obj.realLifeConnections}
+          </p>
         )}
       </div>
     );
@@ -33,13 +97,15 @@ function renderObject(obj: LessonJson) {
     <div className="mb-3">
       {Object.keys(obj).map((k) => (
         <div key={k} className="mb-2">
-          <h5 className="font-medium text-sm capitalize">{k.replace(/([A-Z])/g, " $1")}</h5>
+          <h5 className="font-medium text-sm capitalize">
+            {k.replace(/([A-Z])/g, " $1")}
+          </h5>
           <div className="text-sm text-gray-700 mt-1">
             {Array.isArray(obj[k])
               ? renderArray(obj[k])
               : typeof obj[k] === "object"
-              ? renderObject(obj[k])
-              : String(obj[k])}
+                ? renderObject(obj[k])
+                : String(obj[k])}
           </div>
         </div>
       ))}
@@ -47,8 +113,84 @@ function renderObject(obj: LessonJson) {
   );
 }
 
-export function renderLessonContent(content: string | LessonJson | null | undefined) {
-  if (!content) return <div className="text-gray-700">No content available.</div>;
+function normalizeLessonObject(input: LessonJson): LessonJson {
+  if (!input || typeof input !== "object") return input;
+  const obj: LessonJson = { ...input };
+
+  // Normalize title
+  if (!obj.lessonTitle && (obj.title || obj.name)) {
+    obj.lessonTitle = obj.lessonTitle || obj.title || obj.name;
+  }
+
+  // Normalize introduction/overview/summary
+  obj.introduction = obj.introduction || obj.intro || null;
+  obj.lessonOverview =
+    obj.lessonOverview || obj.lesson_overview || obj.overview || null;
+  obj.summary =
+    obj.summary ||
+    obj.conclusion ||
+    obj.description ||
+    obj.lessonOverview ||
+    null;
+
+  // Normalize learning objectives
+  if (!obj.learningObjectives) {
+    obj.learningObjectives =
+      obj.learningObjectives || obj.objectives || obj.goals || null;
+  }
+
+  // Normalize key concepts
+  if (!obj.keyConcepts) {
+    obj.keyConcepts =
+      obj.keyConcepts || obj.concepts || obj.coreConcepts || null;
+  }
+
+  // Normalize suggested activities
+  obj.suggestedActivities =
+    obj.suggestedActivities || obj.activities || obj.tasks || null;
+
+  // Normalize further reading
+  obj.furtherReading =
+    obj.furtherReading ||
+    obj.further_reading ||
+    obj.references ||
+    obj.reading ||
+    null;
+
+  // Ensure arrays are arrays of strings or objects
+  if (obj.suggestedActivities && !Array.isArray(obj.suggestedActivities)) {
+    obj.suggestedActivities = [String(obj.suggestedActivities)];
+  }
+  if (obj.furtherReading && !Array.isArray(obj.furtherReading)) {
+    obj.furtherReading = [String(obj.furtherReading)];
+  }
+
+  // Normalize keyConcepts items into objects with concept + detailedExplanation
+  if (Array.isArray(obj.keyConcepts)) {
+    obj.keyConcepts = obj.keyConcepts.map((kc: any) => {
+      if (typeof kc === "string")
+        return { concept: kc, detailedExplanation: "" };
+      if (typeof kc === "object") {
+        return {
+          concept: kc.concept || kc.title || kc.name || "",
+          detailedExplanation:
+            kc.detailedExplanation || kc.description || kc.summary || "",
+          realLifeConnections:
+            kc.realLifeConnections || kc.examples || kc.real_life || null,
+        };
+      }
+      return { concept: String(kc), detailedExplanation: "" };
+    });
+  }
+
+  return obj;
+}
+
+export function renderLessonContent(
+  content: string | LessonJson | null | undefined,
+) {
+  if (!content)
+    return <div className="text-gray-700">No content available.</div>;
 
   // If string, try parse JSON
   if (typeof content === "string") {
@@ -64,7 +206,10 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
     }
 
     // Render plain text with paragraphs separated by double newlines, keep pre-line whitespace
-    const paragraphs = trimmed.split(/\n\n+/).map((p) => p.trim());
+    const paragraphs = trimmed
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
     return (
       <div className="prose prose-sm text-gray-700">
         {paragraphs.map((p, idx) => (
@@ -81,35 +226,47 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
     return renderArray(content as any[]);
   }
 
-  // If object, render known fields in a readable order
-  const obj = content as LessonJson;
+  // If object, normalize then render known fields in a readable order
+  const obj = normalizeLessonObject(content as LessonJson);
+
   return (
     <div className="space-y-4 text-gray-800">
-      {obj.lessonTitle && <h2 className="text-2xl font-bold">{obj.lessonTitle}</h2>}
+      {obj.lessonTitle && (
+        <h2 className="text-2xl font-bold">{obj.lessonTitle}</h2>
+      )}
+
       {obj.prerequisites && (
         <div>
           <h3 className="text-lg font-semibold">Prerequisites</h3>
           {renderArray(obj.prerequisites)}
         </div>
       )}
+
       {obj.introduction && (
         <div>
           <h3 className="text-lg font-semibold">Introduction</h3>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{obj.introduction}</p>
+          <p className="text-sm text-gray-700 whitespace-pre-line">
+            {obj.introduction}
+          </p>
         </div>
       )}
+
       {obj.lessonOverview && (
         <div>
           <h3 className="text-lg font-semibold">Lesson Overview</h3>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{obj.lessonOverview}</p>
+          <p className="text-sm text-gray-700 whitespace-pre-line">
+            {obj.lessonOverview}
+          </p>
         </div>
       )}
+
       {obj.learningObjectives && (
         <div>
           <h3 className="text-lg font-semibold">Learning Objectives</h3>
           {renderArray(obj.learningObjectives)}
         </div>
       )}
+
       {obj.keyConcepts && (
         <div>
           <h3 className="text-lg font-semibold">Key Concepts</h3>
@@ -122,22 +279,69 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
           </div>
         </div>
       )}
-      {obj.contentOrder && (
+
+      {/* Summary */}
+      {obj.summary && (
         <div>
-          <h3 className="text-lg font-semibold">Content Order</h3>
-          <ol className="list-decimal pl-6">
-            {obj.contentOrder.map((c: any, idx: number) => (
-              <li key={idx} className="mb-1">{c}</li>
-            ))}
-          </ol>
+          <h3 className="text-lg font-semibold">Summary</h3>
+          <p className="text-sm text-gray-700 whitespace-pre-line">
+            {obj.summary}
+          </p>
         </div>
       )}
+
+      {/* Suggested Activities */}
+      {obj.suggestedActivities && (
+        <div>
+          <h3 className="text-lg font-semibold">Suggested Activities</h3>
+          <div className="mt-2">
+            {Array.isArray(obj.suggestedActivities) ? (
+              <ul className="list-disc pl-6">
+                {obj.suggestedActivities.map((a: any, i: number) => (
+                  <li key={i} className="mb-1">
+                    {typeof a === "string" ? a : String(a)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-700">
+                {String(obj.suggestedActivities)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Further Reading */}
+      {obj.furtherReading && (
+        <div>
+          <h3 className="text-lg font-semibold">Further Reading</h3>
+          <div className="mt-2">
+            {Array.isArray(obj.furtherReading) ? (
+              <ul className="list-disc pl-6">
+                {obj.furtherReading.map((r: any, i: number) => (
+                  <li key={i} className="mb-1">
+                    {typeof r === "string" ? r : String(r)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-700">
+                {String(obj.furtherReading)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Render other known sections generically */}
       {obj.examples && (
         <div>
           <h3 className="text-lg font-semibold">Examples</h3>
           {renderArray(obj.examples)}
         </div>
       )}
+
       {obj.assessment && (
         <div>
           <h3 className="text-lg font-semibold">Assessment</h3>
@@ -148,7 +352,9 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
                 {obj.assessment.formative.map((f: any, idx: number) => (
                   <div key={idx} className="p-2 border rounded">
                     <div className="font-medium">{f.question}</div>
-                    <div className="text-sm text-gray-700">Answer: {f.answerKey}</div>
+                    <div className="text-sm text-gray-700">
+                      Answer: {f.answerKey}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -162,26 +368,14 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
                 {obj.assessment.summative.map((s: any, idx: number) => (
                   <div key={idx} className="p-2 border rounded">
                     <div className="font-medium">{s.question}</div>
-                    <div className="text-sm text-gray-700">Answer: {s.answerKey}</div>
+                    <div className="text-sm text-gray-700">
+                      Answer: {s.answerKey}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {obj.summary && (
-        <div>
-          <h3 className="text-lg font-semibold">Summary</h3>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{obj.summary}</p>
-        </div>
-      )}
-
-      {obj.keyTakeaways && (
-        <div>
-          <h3 className="text-lg font-semibold">Key Takeaways</h3>
-          {renderArray(obj.keyTakeaways)}
         </div>
       )}
 
@@ -201,20 +395,126 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
               "assessment",
               "summary",
               "keyTakeaways",
+              "suggestedActivities",
+              "furtherReading",
             ].includes(k),
         )
         .map((k) => (
           <div key={k}>
-            <h4 className="font-medium text-sm capitalize">{k.replace(/([A-Z])/g, " $1")}</h4>
+            <h4 className="font-medium text-sm capitalize">
+              {k.replace(/([A-Z])/g, " $1")}
+            </h4>
             <div className="text-sm text-gray-700 mt-1">
               {Array.isArray(obj[k])
                 ? renderArray(obj[k])
                 : typeof obj[k] === "object"
-                ? renderObject(obj[k])
-                : String(obj[k])}
+                  ? renderObject(obj[k])
+                  : String(obj[k])}
             </div>
           </div>
         ))}
     </div>
   );
+}
+
+// Helper to escape HTML when producing string HTML
+function escapeHtmlStr(str: any) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\'/g, "&#39;");
+}
+
+export function contentToHtmlString(
+  content: string | LessonJson | null | undefined,
+) {
+  if (!content) return "<div>No content available.</div>";
+
+  // If string
+  if (typeof content === "string") {
+    const paragraphs = content
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return paragraphs
+      .map((p) => `<p>${escapeHtmlStr(p).replace(/\n/g, "<br/>")}</p>`)
+      .join("");
+  }
+
+  if (Array.isArray(content)) {
+    return `<ul>${content.map((it: any) => `<li>${escapeHtmlStr(typeof it === "object" ? JSON.stringify(it) : it)}</li>`).join("")}</ul>`;
+  }
+
+  const obj = normalizeLessonObject(content as LessonJson);
+
+  let html = "";
+  if (obj.lessonTitle) html += `<h2>${escapeHtmlStr(obj.lessonTitle)}</h2>`;
+  if (obj.introduction)
+    html += `<h3>Introduction</h3><p>${escapeHtmlStr(obj.introduction)}</p>`;
+  if (obj.lessonOverview)
+    html += `<h3>Lesson Overview</h3><p>${escapeHtmlStr(obj.lessonOverview)}</p>`;
+  if (obj.learningObjectives)
+    html += `<h3>Learning Objectives</h3><ul>${(Array.isArray(obj.learningObjectives) ? obj.learningObjectives : []).map((o: any) => `<li>${escapeHtmlStr(o)}</li>`).join("")}</ul>`;
+
+  if (obj.keyConcepts) {
+    html += `<h3>Key Concepts</h3>`;
+    html +=
+      "<div>" +
+      obj.keyConcepts
+        .map((kc: any) => {
+          const title = escapeHtmlStr(kc.concept);
+          const detail = escapeHtmlStr(kc.detailedExplanation);
+          const real = kc.realLifeConnections
+            ? `<p class="italic">${escapeHtmlStr(kc.realLifeConnections)}</p>`
+            : "";
+          return `<div class="p-3 bg-white border rounded mb-2"><h4>${title}</h4><p>${detail}</p>${real}</div>`;
+        })
+        .join("") +
+      "</div>";
+  }
+
+  if (obj.summary)
+    html += `<h3>Summary</h3><p>${escapeHtmlStr(obj.summary)}</p>`;
+
+  if (obj.suggestedActivities)
+    html += `<h3>Suggested Activities</h3><ul>${(Array.isArray(obj.suggestedActivities) ? obj.suggestedActivities : []).map((a: any) => `<li>${escapeHtmlStr(a)}</li>`).join("")}</ul>`;
+
+  if (obj.furtherReading)
+    html += `<h3>Further Reading</h3><ul>${(Array.isArray(obj.furtherReading) ? obj.furtherReading : []).map((r: any) => `<li>${escapeHtmlStr(r)}</li>`).join("")}</ul>`;
+
+  // Fallback for other keys
+  const otherKeys = Object.keys(obj).filter(
+    (k) =>
+      ![
+        "lessonTitle",
+        "prerequisites",
+        "introduction",
+        "lessonOverview",
+        "learningObjectives",
+        "keyConcepts",
+        "contentOrder",
+        "examples",
+        "assessment",
+        "summary",
+        "keyTakeaways",
+        "suggestedActivities",
+        "furtherReading",
+      ].includes(k),
+  );
+  for (const k of otherKeys) {
+    const val = (obj as any)[k];
+    if (val === undefined || val === null) continue;
+    if (Array.isArray(val)) {
+      html += `<h4>${escapeHtmlStr(k)}</h4><ul>${val.map((v: any) => `<li>${escapeHtmlStr(typeof v === "object" ? JSON.stringify(v) : v)}</li>`).join("")}</ul>`;
+    } else if (typeof val === "object") {
+      html += `<h4>${escapeHtmlStr(k)}</h4><pre>${escapeHtmlStr(JSON.stringify(val, null, 2))}</pre>`;
+    } else {
+      html += `<h4>${escapeHtmlStr(k)}</h4><p>${escapeHtmlStr(val)}</p>`;
+    }
+  }
+
+  return html || "<div>No content.</div>";
 }

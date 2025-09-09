@@ -77,7 +77,7 @@ import {
   EndLessonSessionRequest,
 } from "@/services/lessonSessionService";
 import { authService } from "@/services/authService";
-import { renderLessonContent } from "@/lib/lessonRenderer";
+import { renderLessonContent, prepareLessonContent } from "@/lib/lessonRenderer";
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/anansiai";
@@ -3197,7 +3197,7 @@ const StudentDashboard = () => {
                               {/* Inline book-style lesson content */}
                               {expandedLessons[lesson.id] && (
                                 <div className="mt-4 p-6 bg-white border border-gray-200 rounded-lg prose">
-                                  {renderLessonContent(lesson.content || lesson.description)}
+                                  {renderLessonContent(prepareLessonContent(lesson.content || lesson.description))}
                                 </div>
                               )}
 

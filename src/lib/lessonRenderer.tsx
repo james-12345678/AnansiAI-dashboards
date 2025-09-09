@@ -351,3 +351,68 @@ export function renderLessonContent(content: string | LessonJson | null | undefi
     </div>
   );
 }
+
+// Helper to escape HTML when producing string HTML
+function escapeHtmlStr(str: any) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\'/g, '&#39;');
+}
+
+export function contentToHtmlString(content: string | LessonJson | null | undefined) {
+  if (!content) return "<div>No content available.</div>";
+
+  // If string
+  if (typeof content === "string") {
+    const paragraphs = content.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    return paragraphs.map(p => `<p>${escapeHtmlStr(p).replace(/\n/g, '<br/>')}</p>`).join('');
+  }
+
+  if (Array.isArray(content)) {
+    return `<ul>${content.map((it: any) => `<li>${escapeHtmlStr(typeof it === 'object' ? JSON.stringify(it) : it)}</li>`).join('')}</ul>`;
+  }
+
+  const obj = normalizeLessonObject(content as LessonJson);
+
+  let html = '';
+  if (obj.lessonTitle) html += `<h2>${escapeHtmlStr(obj.lessonTitle)}</h2>`;
+  if (obj.introduction) html += `<h3>Introduction</h3><p>${escapeHtmlStr(obj.introduction)}</p>`;
+  if (obj.lessonOverview) html += `<h3>Lesson Overview</h3><p>${escapeHtmlStr(obj.lessonOverview)}</p>`;
+  if (obj.learningObjectives) html += `<h3>Learning Objectives</h3><ul>${(Array.isArray(obj.learningObjectives)?obj.learningObjectives:[]).map((o:any) => `<li>${escapeHtmlStr(o)}</li>`).join('')}</ul>`;
+
+  if (obj.keyConcepts) {
+    html += `<h3>Key Concepts</h3>`;
+    html += '<div>' + obj.keyConcepts.map((kc: any) => {
+      const title = escapeHtmlStr(kc.concept);
+      const detail = escapeHtmlStr(kc.detailedExplanation);
+      const real = kc.realLifeConnections ? `<p class="italic">${escapeHtmlStr(kc.realLifeConnections)}</p>` : '';
+      return `<div class="p-3 bg-white border rounded mb-2"><h4>${title}</h4><p>${detail}</p>${real}</div>`;
+    }).join('') + '</div>';
+  }
+
+  if (obj.summary) html += `<h3>Summary</h3><p>${escapeHtmlStr(obj.summary)}</p>`;
+
+  if (obj.suggestedActivities) html += `<h3>Suggested Activities</h3><ul>${(Array.isArray(obj.suggestedActivities)?obj.suggestedActivities:[]).map((a:any)=>`<li>${escapeHtmlStr(a)}</li>`).join('')}</ul>`;
+
+  if (obj.furtherReading) html += `<h3>Further Reading</h3><ul>${(Array.isArray(obj.furtherReading)?obj.furtherReading:[]).map((r:any)=>`<li>${escapeHtmlStr(r)}</li>`).join('')}</ul>`;
+
+  // Fallback for other keys
+  const otherKeys = Object.keys(obj).filter(k => !["lessonTitle","prerequisites","introduction","lessonOverview","learningObjectives","keyConcepts","contentOrder","examples","assessment","summary","keyTakeaways","suggestedActivities","furtherReading"].includes(k));
+  for (const k of otherKeys) {
+    const val = (obj as any)[k];
+    if (val === undefined || val === null) continue;
+    if (Array.isArray(val)) {
+      html += `<h4>${escapeHtmlStr(k)}</h4><ul>${val.map((v:any)=>`<li>${escapeHtmlStr(typeof v === 'object' ? JSON.stringify(v) : v)}</li>`).join('')}</ul>`;
+    } else if (typeof val === 'object') {
+      html += `<h4>${escapeHtmlStr(k)}</h4><pre>${escapeHtmlStr(JSON.stringify(val, null, 2))}</pre>`;
+    } else {
+      html += `<h4>${escapeHtmlStr(k)}</h4><p>${escapeHtmlStr(val)}</p>`;
+    }
+  }
+
+  return html || '<div>No content.</div>';
+}

@@ -2773,6 +2773,20 @@ const StudentDashboard = () => {
                                   completed
                                 </span>
                               </div>
+
+                              <div className="mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewSubject(subject);
+                                  }}
+                                  className="w-full text-xs"
+                                >
+                                  View Content
+                                </Button>
+                              </div>
                             </div>
                           );
                         })}

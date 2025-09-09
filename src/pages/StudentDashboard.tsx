@@ -77,7 +77,7 @@ import {
   EndLessonSessionRequest,
 } from "@/services/lessonSessionService";
 import { authService } from "@/services/authService";
-import { renderLessonContent, prepareLessonContent } from "@/lib/lessonRenderer";
+import { renderLessonContent, prepareLessonContent, contentToHtmlString } from "@/lib/lessonRenderer";
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/anansiai";
@@ -1102,7 +1102,7 @@ const StudentDashboard = () => {
         try {
           // Load educational data directly from API endpoints (teacher-created content)
           console.log("🔄 Fetching student data from consolidated API endpoint...");
-          console.log("���� Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
+          console.log("🔑 Using auth token:", localStorage.getItem('anansi_token') ? 'Present' : 'Missing');
 
           // Only call the student-scoped endpoint - no admin endpoints
           const studentSubjectsResponse = await axiosClient.get('/api/students/student-subjects')
@@ -1902,7 +1902,7 @@ const StudentDashboard = () => {
       case Mood.Focused:
         return "🎯";
       case Mood.Anxious:
-        return "��";
+        return "😰";
       case Mood.Tired:
         return "😴";
       case Mood.Frustrated:

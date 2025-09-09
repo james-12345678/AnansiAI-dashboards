@@ -3116,7 +3116,10 @@ const StudentDashboard = () => {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setLastAction(`Toggling book view for ${courseDisplay.title}`);
-                                    setExpandedLessons((prev) => ({ ...prev, [lesson.id]: !prev[lesson.id] }));
+                                    setExpandedLessons((prev) => {
+                                      const opening = !prev[lesson.id];
+                                      return opening ? { [lesson.id]: true } : {};
+                                    });
                                   }}
                                 >
                                   <FileText className="w-4 h-4 mr-2" />

@@ -2129,27 +2129,46 @@ export class AdminApiService {
 
       const lowerQuery = query.toLowerCase();
 
+      const toSearchable = (raw: any) => {
+        try {
+          // lazy require to avoid potential circular imports
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { prepareLessonContent } = require("@/lib/lessonRenderer");
+          const prepared = prepareLessonContent(raw);
+          if (!prepared) return "";
+          if (typeof prepared === "string") return prepared.toLowerCase();
+          if (typeof prepared === "object") return JSON.stringify(prepared).toLowerCase();
+          return String(prepared).toLowerCase();
+        } catch (e) {
+          try {
+            return String(raw || "").toLowerCase();
+          } catch (e2) {
+            return "";
+          }
+        }
+      };
+
       return {
         institutions: institutions.filter(
           (inst) =>
-            inst.name.toLowerCase().includes(lowerQuery) ||
-            inst.address.toLowerCase().includes(lowerQuery),
+            (inst.name || "").toLowerCase().includes(lowerQuery) ||
+            (inst.address || "").toLowerCase().includes(lowerQuery),
         ),
         subjects: subjects.filter(
           (subject) =>
-            subject.subjectName.toLowerCase().includes(lowerQuery) ||
-            subject.description.toLowerCase().includes(lowerQuery),
+            (subject.subjectName || "").toLowerCase().includes(lowerQuery) ||
+            (subject.description || "").toLowerCase().includes(lowerQuery),
         ),
-        lessons: lessons.filter(
-          (lesson) =>
-            lesson.title.toLowerCase().includes(lowerQuery) ||
-            lesson.content.toLowerCase().includes(lowerQuery),
-        ),
-        assignments: assignments.filter(
-          (assignment) =>
-            assignment.title.toLowerCase().includes(lowerQuery) ||
-            assignment.content.toLowerCase().includes(lowerQuery),
-        ),
+        lessons: lessons.filter((lesson) => {
+          const title = (lesson.title || "").toLowerCase();
+          const content = toSearchable(lesson.content || lesson.description);
+          return title.includes(lowerQuery) || content.includes(lowerQuery);
+        }),
+        assignments: assignments.filter((assignment) => {
+          const title = (assignment.title || "").toLowerCase();
+          const content = toSearchable(assignment.content || assignment.description);
+          return title.includes(lowerQuery) || content.includes(lowerQuery);
+        }),
       };
     } catch (error) {
       console.error("Error performing search:", error);
